@@ -1,0 +1,3621 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#4F46E5">
+<title>シフトカレンダー</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<style>
+  :root {
+    --primary: #4F46E5;
+    --primary-light: #EEF2FF;
+    --ko: #16A34A;
+    --ko-light: #DCFCE7;
+    --otsu: #EA580C;
+    --otsu-light: #FFEDD5;
+    --hei: #1D4ED8;
+    --hei-light: #DBEAFE;
+    --off: #6B7280;
+    --off-light: #F3F4F6;
+    --school: #DB2777;
+    --school-light: #FCE7F3;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Yu Gothic', sans-serif;
+    background: #F8F9FA;
+    min-height: 100vh;
+    color: #1F2937;
+  }
+
+  /* HEADER */
+  .app-header {
+    background: var(--primary);
+    color: white;
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  }
+  .app-header h1 { font-size: 18px; font-weight: 700; }
+  .header-actions { display: flex; gap: 8px; }
+  .icon-btn {
+    background: rgba(255,255,255,0.15);
+    border: none; color: white;
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+    transition: background 0.2s;
+  }
+  .icon-btn:hover { background: rgba(255,255,255,0.25); }
+
+  /* GROUP BAR */
+  .group-bar {
+    background: white;
+    padding: 10px 16px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    border-bottom: 1px solid #E5E7EB;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .group-bar::-webkit-scrollbar { display: none; }
+  .group-bar label { font-size: 13px; color: #6B7280; white-space: nowrap; }
+  .group-btn {
+    flex: 0 0 auto;
+    padding: 5px 14px;
+    border-radius: 20px;
+    border: 2px solid #E5E7EB;
+    background: white;
+    font-size: 14px; font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    color: #374151;
+  }
+  .group-btn.active { background: var(--primary); border-color: var(--primary); color: white; }
+
+  /* LEGEND */
+  .legend-bar {
+    background: white;
+    padding: 6px 16px;
+    display: flex;
+    gap: 10px;
+    border-bottom: 1px solid #E5E7EB;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .legend-bar::-webkit-scrollbar { display: none; }
+  .legend-item {
+    display: flex; align-items: center; gap: 4px;
+    font-size: 11px; color: #374151; white-space: nowrap;
+  }
+  .legend-dot { width: 9px; height: 9px; border-radius: 50%; }
+  .dot-ko { background: var(--ko); }
+  .dot-otsu { background: var(--otsu); }
+  .dot-hei { background: var(--hei); }
+  .dot-off { background: var(--off); }
+  .dot-school { background: var(--school); }
+
+  /* CALENDAR NAV */
+  .calendar-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 14px;
+    background: white;
+    border-bottom: 1px solid #E5E7EB;
+  }
+  .nav-btn {
+    width: 34px; height: 34px;
+    border-radius: 50%;
+    border: 1px solid #E5E7EB;
+    background: white;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px;
+    transition: background 0.15s;
+  }
+  .nav-btn:hover { background: #F3F4F6; }
+  .month-title { font-size: 17px; font-weight: 700; }
+
+  /* CALENDAR GRID */
+  .calendar-grid { background: white; padding: 0; overflow: hidden; }
+
+  /* Month slide animation */
+  @keyframes slideInLeft  { from { transform: translateX( 100%); opacity:0; } to { transform: translateX(0); opacity:1; } }
+  @keyframes slideInRight { from { transform: translateX(-100%); opacity:0; } to { transform: translateX(0); opacity:1; } }
+  @keyframes slideOutLeft  { from { transform: translateX(0); opacity:1; } to { transform: translateX(-100%); opacity:0; } }
+  @keyframes slideOutRight { from { transform: translateX(0); opacity:1; } to { transform: translateX( 100%); opacity:0; } }
+
+  #daysGrid.slide-in-left  { animation: slideInLeft  0.28s cubic-bezier(0.4,0,0.2,1) both; }
+  #daysGrid.slide-in-right { animation: slideInRight 0.28s cubic-bezier(0.4,0,0.2,1) both; }
+  #daysGrid.slide-out-left  { animation: slideOutLeft  0.18s cubic-bezier(0.4,0,0.2,1) both; }
+  #daysGrid.slide-out-right { animation: slideOutRight 0.18s cubic-bezier(0.4,0,0.2,1) both; }
+  .weekday-row {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    border-bottom: 1px solid #E5E7EB;
+    background: #FAFAFA;
+  }
+  .weekday-cell {
+    text-align: center;
+    font-size: 10px; font-weight: 700;
+    padding: 5px 0;
+    color: #6B7280;
+    letter-spacing: 0.02em;
+  }
+  .weekday-cell.sun { color: #EF4444; }
+  .weekday-cell.sat { color: #3B82F6; }
+
+  /* WEEK ROW */
+  .week-row { border-bottom: 1px solid #E5E7EB; }
+  .week-day-cells { display: grid; grid-template-columns: repeat(7, 1fr); }
+
+  /* Each cell uses border lines like real calendar grid */
+  .day-cell {
+    min-height: 52px;
+    padding: 3px 3px 2px;
+    cursor: pointer;
+    position: relative;
+    border-right: 1px solid #E5E7EB;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .day-cell:nth-child(7n) { border-right: none; }
+  .day-cell:active { opacity: 0.7; }
+  .day-cell.empty {
+    background: #FAFAFA;
+    cursor: default;
+  }
+
+  /* Shift background tints */
+  .day-cell.shift-ko   { background: #F0FDF4; }
+  .day-cell.shift-otsu { background: #FFF7ED; }
+  .day-cell.shift-hei  { background: #EFF6FF; }
+  .day-cell.shift-off  { background: #F9FAFB; }
+
+  /* Today highlight */
+  .day-cell.today::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border: 2px solid var(--primary);
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  /* Day number row */
+  .day-num-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 18px;
+  }
+  .day-num {
+    font-size: 13px; font-weight: 700;
+    line-height: 1;
+    color: #374151;
+    width: 22px; height: 22px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .day-cell.is-sun .day-num { color: #EF4444; }
+  .day-cell.is-sat .day-num { color: #3B82F6; }
+  .day-cell.today .day-num {
+    background: var(--primary);
+    color: white !important;
+  }
+
+  /* Shift tag – shown next to day number */
+  .shift-tag {
+    font-size: 8px; font-weight: 800;
+    padding: 1px 5px;
+    border-radius: 10px;
+    color: white;
+    line-height: 1.5;
+    white-space: nowrap;
+  }
+  .tag-ko   { background: var(--ko); }
+  .tag-otsu { background: var(--otsu); }
+  .tag-hei  { background: var(--hei); }
+  .tag-off  { background: var(--off); }
+
+  /* Events layer */
+  .week-events-layer { display: flex; flex-direction: column; gap: 1px; padding: 0 0 3px; }
+  .events-row { position: relative; height: 16px; width: 100%; }
+
+  /* Multi-day event bar */
+  .event-bar {
+    position: absolute;
+    height: 16px;
+    border-radius: 3px;
+    font-size: 9px; font-weight: 700;
+    color: white;
+    padding: 0 4px;
+    display: flex; align-items: center;
+    overflow: hidden; white-space: nowrap;
+    cursor: pointer; z-index: 1;
+    box-sizing: border-box;
+  }
+  .event-bar-time { opacity: 0.85; font-size: 8px; margin-right: 2px; flex-shrink: 0; }
+  .event-bar-title { overflow: hidden; text-overflow: ellipsis; }
+
+  /* School time */
+  .school-row { position: relative; height: 14px; width: 100%; }
+  .school-bar {
+    position: absolute;
+    height: 14px;
+    font-size: 8px; font-weight: 700;
+    color: var(--school);
+    display: flex; align-items: center;
+    white-space: nowrap; overflow: hidden;
+    box-sizing: border-box;
+    padding: 0 2px;
+  }
+
+  /* MODAL */
+  .modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 200;
+    display: none;
+    align-items: flex-end;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal-box {
+    background: white;
+    border-radius: 20px 20px 0 0;
+    width: 100%;
+    max-height: 92vh;
+    overflow-y: auto;
+    padding: 16px 20px 32px;
+    animation: slideUp 0.25s ease;
+    position: relative;
+    will-change: transform;
+  }
+  .modal-box.swiping {
+    transition: none !important;
+    overflow-y: hidden;
+  }
+  @keyframes slideUp {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+  }
+  .modal-handle {
+    width: 40px; height: 4px;
+    background: #E5E7EB;
+    border-radius: 2px;
+    margin: 0 auto 14px;
+  }
+  .modal-title { font-size: 18px; font-weight: 700; margin-bottom: 16px; }
+  .modal-close {
+    position: absolute; top: 16px; right: 16px;
+    background: #F3F4F6; border: none;
+    width: 28px; height: 28px; border-radius: 50%;
+    cursor: pointer; font-size: 16px;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  /* SETTINGS */
+  .settings-section { margin-bottom: 20px; }
+  .settings-section-title {
+    font-size: 12px; font-weight: 700; color: #6B7280;
+    text-transform: uppercase; letter-spacing: 0.05em;
+    margin-bottom: 8px;
+  }
+  .settings-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 0;
+    border-bottom: 1px solid #F3F4F6;
+    gap: 8px;
+  }
+  .settings-row:last-child { border-bottom: none; }
+  .settings-label { font-size: 14px; flex: 1; }
+  .settings-input {
+    padding: 6px 10px;
+    border: 1px solid #E5E7EB;
+    border-radius: 8px;
+    font-size: 14px;
+    width: 130px;
+    text-align: right;
+  }
+  .settings-input:focus { outline: none; border-color: var(--primary); }
+  .settings-input.wide { width: 100%; text-align: left; margin-top: 6px; }
+
+  /* CHILDREN */
+  .child-list { display: flex; flex-direction: column; gap: 6px; }
+  .child-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 12px;
+    background: #F9FAFB;
+    border-radius: 10px;
+  }
+  .child-name-input {
+    flex: 1; border: none; background: transparent;
+    font-size: 15px; font-weight: 600; outline: none;
+  }
+  .child-grade-select {
+    border: 1px solid #E5E7EB; border-radius: 6px;
+    font-size: 13px; padding: 2px 4px;
+    background: white; color: #374151;
+  }
+  .child-remove {
+    background: #FEE2E2; border: none; color: #EF4444;
+    width: 26px; height: 26px; border-radius: 50%;
+    cursor: pointer; font-size: 14px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .add-child-btn {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 12px;
+    border: 2px dashed #E5E7EB;
+    border-radius: 10px;
+    background: white; cursor: pointer;
+    width: 100%; font-size: 14px; color: #6B7280;
+    transition: border-color 0.2s;
+    margin-top: 6px;
+  }
+  .add-child-btn:hover { border-color: var(--primary); color: var(--primary); }
+
+  /* EVENTS in day modal */
+  .event-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+  .event-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: #F9FAFB;
+    cursor: pointer;
+  }
+  .event-color-dot {
+    width: 12px; height: 12px; border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .event-item-title {
+    flex: 1; font-size: 14px; font-weight: 600;
+  }
+  .event-item-time { font-size: 12px; color: #6B7280; }
+  .event-item-del {
+    background: #FEE2E2; border: none; color: #EF4444;
+    width: 24px; height: 24px; border-radius: 50%;
+    cursor: pointer; font-size: 14px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .add-event-btn {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 12px;
+    border: 2px dashed #E5E7EB;
+    border-radius: 10px;
+    background: white; cursor: pointer;
+    width: 100%; font-size: 13px; color: #6B7280;
+    transition: all 0.2s;
+  }
+  .add-event-btn:hover { border-color: var(--primary); color: var(--primary); }
+
+  /* EVENT COLOR SWATCHES */
+  .color-swatches {
+    display: flex; gap: 8px; flex-wrap: wrap;
+    margin-top: 6px;
+  }
+  .color-swatch {
+    width: 28px; height: 28px; border-radius: 50%;
+    border: 3px solid transparent;
+    cursor: pointer;
+    transition: border-color 0.15s;
+  }
+  .color-swatch.selected { border-color: #1F2937; }
+
+  /* PHOTO */
+  .photo-btns {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  .photo-btn {
+    padding: 16px 8px;
+    border: 2px dashed #E5E7EB;
+    border-radius: 12px;
+    background: white;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+  }
+  .photo-btn:hover { border-color: var(--school); background: var(--school-light); }
+  .photo-btn input[type="file"] {
+    position: absolute; inset: 0; opacity: 0; cursor: pointer;
+  }
+  .photo-btn-icon { font-size: 28px; }
+  .photo-btn-label { font-size: 12px; font-weight: 600; color: #374151; margin-top: 4px; }
+
+  .ocr-preview { margin-top: 10px; border-radius: 8px; overflow: hidden; display: none; }
+  .ocr-preview.visible { display: block; }
+  .ocr-preview img { width: 100%; max-height: 180px; object-fit: contain; }
+
+  .school-schedule-table {
+    width: 100%; border-collapse: collapse;
+    font-size: 13px; margin-top: 8px;
+  }
+  .school-schedule-table th,
+  .school-schedule-table td {
+    padding: 5px 6px;
+    border: 1px solid #E5E7EB;
+    text-align: center;
+  }
+  .school-schedule-table th {
+    background: #F9FAFB; font-weight: 600; color: #374151;
+  }
+  .time-input {
+    border: none; background: transparent;
+    font-size: 13px; text-align: center;
+    width: 72px; outline: none;
+    color: var(--school); font-weight: 600;
+  }
+  .time-input:focus { background: var(--school-light); border-radius: 4px; }
+
+  /* BUTTONS */
+  .btn-primary {
+    background: var(--primary); color: white;
+    border: none; border-radius: 10px;
+    padding: 12px 20px;
+    font-size: 15px; font-weight: 600;
+    cursor: pointer; width: 100%;
+    transition: opacity 0.2s;
+    margin-top: 4px;
+  }
+  .btn-primary:hover { opacity: 0.9; }
+  .btn-secondary {
+    background: #F3F4F6; color: #374151;
+    border: none; border-radius: 10px;
+    padding: 12px 20px;
+    font-size: 15px; font-weight: 600;
+    cursor: pointer; width: 100%;
+    margin-top: 8px;
+    transition: background 0.2s;
+  }
+  .btn-secondary:hover { background: #E5E7EB; }
+  .btn-danger {
+    background: #FEE2E2; color: #EF4444;
+    border: none; border-radius: 10px;
+    padding: 12px 20px;
+    font-size: 15px; font-weight: 600;
+    cursor: pointer; width: 100%;
+    margin-top: 8px;
+  }
+
+  /* LOADING */
+  .loading-overlay {
+    position: fixed; inset: 0;
+    background: rgba(255,255,255,0.85);
+    z-index: 400;
+    display: none;
+    align-items: center; justify-content: center;
+    flex-direction: column; gap: 12px;
+  }
+  .loading-overlay.visible { display: flex; }
+  .spinner {
+    width: 40px; height: 40px;
+    border: 4px solid #E5E7EB;
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-text { font-size: 14px; color: #374151; font-weight: 600; }
+
+  /* TOAST */
+  .toast {
+    position: fixed;
+    bottom: 24px; left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    background: #1F2937; color: white;
+    padding: 10px 20px;
+    border-radius: 20px;
+    font-size: 14px; z-index: 500;
+    transition: transform 0.3s ease;
+    white-space: nowrap;
+    pointer-events: none;
+  }
+  .toast.visible { transform: translateX(-50%) translateY(0); }
+
+  /* EXPORT INFO */
+  .export-info {
+    background: #EEF2FF; border-radius: 10px;
+    padding: 12px; font-size: 13px;
+    color: #4338CA; margin-bottom: 16px; line-height: 1.6;
+  }
+
+  /* SCHOOL TIME INPUTS */
+  .school-child-tag {
+    padding: 3px 10px; border-radius: 6px;
+    background: var(--school-light); color: var(--school);
+    font-size: 13px; font-weight: 600;
+  }
+
+  /* API KEY */
+  .api-key-input {
+    width: 100%; padding: 10px 12px;
+    border: 1px solid #E5E7EB; border-radius: 8px;
+    font-size: 13px; font-family: monospace; margin-top: 6px;
+  }
+  .api-key-input:focus { outline: none; border-color: var(--primary); }
+
+  /* PRESET BUTTONS */
+  .preset-btn {
+    padding: 6px 12px;
+    border-radius: 20px;
+    border: 2px solid var(--primary);
+    background: white;
+    color: var(--primary);
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .preset-btn:hover,
+  .preset-btn.selected {
+    background: var(--primary);
+    color: white;
+  }
+
+  /* EVENT FORM */
+  .event-form-row { margin-bottom: 12px; }
+  .event-form-label {
+    font-size: 12px; font-weight: 700; color: #6B7280;
+    text-transform: uppercase; letter-spacing: 0.04em;
+    margin-bottom: 6px; display: block;
+  }
+  .event-title-input {
+    width: 100%; padding: 10px 12px;
+    border: 1px solid #E5E7EB; border-radius: 8px;
+    font-size: 15px; outline: none;
+  }
+  .event-title-input:focus { border-color: var(--primary); }
+  .event-time-row {
+    display: flex; gap: 8px; align-items: center;
+  }
+  .event-time-input {
+    flex: 1; padding: 8px 10px;
+    border: 1px solid #E5E7EB; border-radius: 8px;
+    font-size: 14px; outline: none;
+  }
+  .event-time-input:focus { border-color: var(--primary); }
+  .event-time-sep { font-size: 16px; color: #6B7280; }
+
+  @media (min-width: 640px) {
+    .day-cell { min-height: 64px; }
+    .day-num { font-size: 14px; width: 24px; height: 24px; }
+    .shift-tag { font-size: 9px; padding: 1px 6px; }
+    .event-bar { height: 18px; font-size: 10px; }
+    .school-bar { height: 16px; font-size: 9px; }
+    .events-row { height: 18px; }
+    .school-row { height: 16px; }
+  }
+
+  /* EVENT DATE INPUT */
+  .event-date-input {
+    flex: 1.5; padding: 8px 10px;
+    border: 1px solid #E5E7EB; border-radius: 8px;
+    font-size: 14px; outline: none;
+  }
+  .event-date-input:focus { border-color: var(--primary); }
+
+  /* ALARM */
+  .alarm-summary {
+    background: #F8FAFC;
+    border: 1px solid #E5E7EB;
+    border-radius: 12px;
+    padding: 12px;
+    margin-bottom: 14px;
+  }
+  .alarm-date {
+    font-size: 13px;
+    color: #6B7280;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+  .alarm-shift {
+    font-size: 22px;
+    font-weight: 800;
+    color: #111827;
+  }
+  .alarm-option-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+  .alarm-mode-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .alarm-choice {
+    border: 1.5px solid #E5E7EB;
+    background: white;
+    color: #374151;
+    border-radius: 10px;
+    min-height: 42px;
+    font-size: 14px;
+    font-weight: 800;
+    cursor: pointer;
+  }
+  .alarm-choice.active {
+    border-color: var(--primary);
+    background: var(--primary-light);
+    color: var(--primary);
+  }
+  .alarm-times-preview {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 8px;
+  }
+  .alarm-time-pill {
+    border-radius: 999px;
+    background: #EEF2FF;
+    color: #4338CA;
+    font-size: 13px;
+    font-weight: 800;
+    padding: 5px 10px;
+  }
+  .alarm-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .alarm-list-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    background: #F9FAFB;
+    border-radius: 10px;
+    padding: 8px 10px;
+    font-size: 13px;
+  }
+  .alarm-list-main { font-weight: 700; color: #1F2937; }
+  .alarm-list-sub { color: #6B7280; font-size: 12px; margin-top: 2px; }
+  .alarm-remove {
+    border: none;
+    background: #FEE2E2;
+    color: #EF4444;
+    border-radius: 50%;
+    width: 28px;
+    height: 28px;
+    cursor: pointer;
+    font-size: 15px;
+    flex-shrink: 0;
+  }
+  .ringing-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9500;
+    background: rgba(17,24,39,0.96);
+    color: white;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    text-align: center;
+  }
+  .ringing-overlay.visible { display: flex; }
+  .ringing-title {
+    font-size: 24px;
+    font-weight: 800;
+    margin-bottom: 8px;
+  }
+  .ringing-time {
+    font-size: 44px;
+    font-weight: 900;
+    margin-bottom: 18px;
+  }
+  .ringing-stop {
+    border: none;
+    border-radius: 12px;
+    background: #EF4444;
+    color: white;
+    font-size: 18px;
+    font-weight: 800;
+    padding: 14px 34px;
+    cursor: pointer;
+  }
+</style>
+</head>
+<body>
+
+<!-- LOGIN SCREEN -->
+<div id="loginScreen" style="
+  position:fixed;inset:0;z-index:9999;
+  background:linear-gradient(135deg,#FF6B6B,#FFB347,#FFE66D);
+  display:flex;align-items:center;justify-content:center;
+  flex-direction:column;
+">
+  <div style="
+    background:white;border-radius:24px;
+    padding:36px 28px 28px;
+    width:min(340px,90vw);
+    box-shadow:0 20px 60px rgba(0,0,0,0.15);
+    text-align:center;
+  ">
+    <img src="apple-touch-icon.png" style="width:72px;height:72px;border-radius:16px;margin-bottom:12px;">
+    <div style="font-size:20px;font-weight:800;color:#1F2937;margin-bottom:4px">シフトカレンダー</div>
+    <div style="font-size:13px;color:#6B7280;margin-bottom:24px">パスワードを入力してください</div>
+    <input id="loginInput" type="password"
+      placeholder="パスワード"
+      style="
+        width:100%;padding:12px 16px;
+        border:2px solid #E5E7EB;border-radius:12px;
+        font-size:16px;outline:none;
+        box-sizing:border-box;margin-bottom:8px;
+        transition:border-color 0.2s;
+      "
+      oninput="this.style.borderColor='#E5E7EB';document.getElementById('loginError').style.display='none'"
+      onkeydown="if(event.key==='Enter')doLogin()">
+    <div id="loginError" style="color:#EF4444;font-size:13px;margin-bottom:8px;display:none">
+      パスワードが違います
+    </div>
+    <button onclick="doLogin()" style="
+      width:100%;padding:13px;
+      background:linear-gradient(135deg,#FF6B6B,#FFB347);
+      border:none;border-radius:12px;
+      color:white;font-size:16px;font-weight:700;
+      cursor:pointer;transition:opacity 0.2s;
+    " onmouseover="this.style.opacity=0.9" onmouseout="this.style.opacity=1">
+      ログイン
+    </button>
+  </div>
+</div>
+
+<!-- LOADING -->
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="spinner"></div>
+  <div class="loading-text" id="loadingText">処理中...</div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<!-- RINGING ALARM -->
+<div class="ringing-overlay" id="ringingAlarm">
+  <div>
+    <div class="ringing-title" id="ringingAlarmTitle">アラーム</div>
+    <div class="ringing-time" id="ringingAlarmTime"></div>
+    <button class="ringing-stop" onclick="stopRingingAlarm()">停止</button>
+  </div>
+</div>
+
+<!-- HEADER -->
+<div class="app-header">
+  <h1>📅 シフトカレンダー</h1>
+  <div class="header-actions">
+    <button class="icon-btn" onclick="openAlarmModal()" title="アラーム">🔔</button>
+    <button class="icon-btn" onclick="openWorkModal()" title="勤務表">📋</button>
+    <button class="icon-btn" onclick="openSettingsModal()" title="設定">⚙️</button>
+  </div>
+</div>
+
+<!-- GROUP SELECTOR -->
+<div class="group-bar">
+  <label>組：</label>
+  <button class="group-btn active" id="btn-A" onclick="selectGroup('A')">A組</button>
+  <button class="group-btn" id="btn-B" onclick="selectGroup('B')">B組</button>
+  <button class="group-btn" id="btn-C" onclick="selectGroup('C')">C組</button>
+  <button class="group-btn" id="btn-D" onclick="selectGroup('D')">D組</button>
+</div>
+
+<!-- LEGEND -->
+<div class="legend-bar" id="legendBar">
+  <div class="legend-item"><span class="legend-dot dot-ko"></span><span id="leg-ko">甲（日勤）</span></div>
+  <div class="legend-item"><span class="legend-dot dot-otsu"></span><span id="leg-otsu">乙（準夜勤）</span></div>
+  <div class="legend-item"><span class="legend-dot dot-hei"></span><span id="leg-hei">丙（夜勤）</span></div>
+  <div class="legend-item"><span class="legend-dot dot-off"></span><span id="leg-off">休み</span></div>
+  <div class="legend-item"><span class="legend-dot dot-school"></span>下校</div>
+</div>
+
+<!-- CALENDAR NAV -->
+<div class="calendar-nav">
+  <button class="nav-btn" onclick="changeMonth(-1)">‹</button>
+  <div class="month-title" id="monthTitle"></div>
+  <button class="nav-btn" onclick="changeMonth(1)">›</button>
+</div>
+
+<!-- CALENDAR GRID -->
+<div class="calendar-grid">
+  <div class="weekday-row">
+    <div class="weekday-cell sun">日</div>
+    <div class="weekday-cell">月</div>
+    <div class="weekday-cell">火</div>
+    <div class="weekday-cell">水</div>
+    <div class="weekday-cell">木</div>
+    <div class="weekday-cell">金</div>
+    <div class="weekday-cell sat">土</div>
+  </div>
+  <div id="daysGrid"></div>
+</div>
+
+<!-- ========== MODALS ========== -->
+
+<!-- ALARM MODAL -->
+<div class="modal-overlay" id="alarmModal" onclick="closeModalOnBg(event,'alarmModal')">
+  <div class="modal-box">
+    <div class="modal-handle"></div>
+    <button class="modal-close" onclick="closeModal('alarmModal')">×</button>
+    <div class="modal-title">🔔 明日のアラーム</div>
+
+    <div class="alarm-summary">
+      <div class="alarm-date" id="alarmTargetDateText"></div>
+      <div class="alarm-shift" id="alarmTargetShiftText"></div>
+    </div>
+
+    <div class="settings-section">
+      <div class="settings-section-title">勤務</div>
+      <div class="alarm-option-row">
+        <button class="alarm-choice" id="alarmShift-ko" onclick="selectAlarmShift('ko')">甲</button>
+        <button class="alarm-choice" id="alarmShift-otsu" onclick="selectAlarmShift('otsu')">乙</button>
+        <button class="alarm-choice" id="alarmShift-hei" onclick="selectAlarmShift('hei')">丙</button>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <div class="settings-section-title">出勤区分</div>
+      <div class="alarm-mode-row">
+        <button class="alarm-choice" id="alarmMode-regular" onclick="selectAlarmMode('regular')">定時</button>
+        <button class="alarm-choice" id="alarmMode-early" onclick="selectAlarmMode('early')">早出</button>
+      </div>
+      <div class="alarm-times-preview" id="alarmTimesPreview"></div>
+    </div>
+
+    <button class="btn-primary" onclick="scheduleSelectedAlarm()">この内容で一気にセット</button>
+    <button class="btn-secondary" onclick="autoScheduleFromLatestWorkPhoto()">最新の勤務表写真から自動セット</button>
+    <button class="btn-secondary" id="alarmAutoToggleBtn" onclick="toggleAutoAlarmEnabled()">アラームON</button>
+
+    <div class="settings-section" style="margin-top:18px">
+      <div class="settings-section-title">セット済み</div>
+      <div class="alarm-list" id="scheduledAlarmList"></div>
+    </div>
+
+    <button class="btn-secondary" onclick="cancelAllScheduledAlarms()">セット済みをすべて解除</button>
+  </div>
+</div>
+
+<!-- SETTINGS MODAL -->
+<div class="modal-overlay" id="settingsModal" onclick="closeModalOnBg(event,'settingsModal')">
+  <div class="modal-box">
+    <div class="modal-handle"></div>
+    <button class="modal-close" onclick="closeModal('settingsModal')">×</button>
+    <div class="modal-title">⚙️ 設定</div>
+
+    <div class="settings-section">
+      <div class="settings-section-title">組の名前</div>
+      <div class="settings-row">
+        <span class="settings-label">A組の名前</span>
+        <input class="settings-input" id="nameA" value="A組" oninput="saveSettings()">
+      </div>
+      <div class="settings-row">
+        <span class="settings-label">B組の名前</span>
+        <input class="settings-input" id="nameB" value="B組" oninput="saveSettings()">
+      </div>
+      <div class="settings-row">
+        <span class="settings-label">C組の名前</span>
+        <input class="settings-input" id="nameC" value="C組" oninput="saveSettings()">
+      </div>
+      <div class="settings-row">
+        <span class="settings-label">D組の名前</span>
+        <input class="settings-input" id="nameD" value="D組" oninput="saveSettings()">
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <div class="settings-section-title">勤務種別の表示名（自由に変更可）</div>
+      <div style="font-size:12px;color:#6B7280;margin-bottom:8px">
+        甲・乙・丙の後ろの文字や（）を自由に編集できます
+      </div>
+      <div class="settings-row">
+        <span class="settings-label">甲の表示名</span>
+        <input class="settings-input" id="labelKo" value="甲（日勤）" oninput="saveSettings()">
+      </div>
+      <div class="settings-row">
+        <span class="settings-label">乙の表示名</span>
+        <input class="settings-input" id="labelOtsu" value="乙（準夜勤）" oninput="saveSettings()">
+      </div>
+      <div class="settings-row">
+        <span class="settings-label">丙の表示名</span>
+        <input class="settings-input" id="labelHei" value="丙（夜勤）" oninput="saveSettings()">
+      </div>
+      <div class="settings-row">
+        <span class="settings-label">休みの表示名</span>
+        <input class="settings-input" id="labelOff" value="休み" oninput="saveSettings()">
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <div class="settings-section-title">勤務時間帯</div>
+      <div class="settings-row">
+        <span class="settings-label" id="lbl-time-ko">甲の時間</span>
+        <input class="settings-input" id="timeKo" value="8:00-16:30" oninput="saveSettings()">
+      </div>
+      <div class="settings-row">
+        <span class="settings-label" id="lbl-time-otsu">乙の時間</span>
+        <input class="settings-input" id="timeOtsu" value="16:00-0:30" oninput="saveSettings()">
+      </div>
+      <div class="settings-row">
+        <span class="settings-label" id="lbl-time-hei">丙の時間</span>
+        <input class="settings-input" id="timeHei" value="0:00-8:30" oninput="saveSettings()">
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <div class="settings-section-title">アラーム時刻（複数可）</div>
+      <div class="settings-row">
+        <span class="settings-label">甲 定時</span>
+        <input class="settings-input" id="alarmKoRegular" value="04:00,04:15,04:30,04:45,05:00,05:15,05:30,06:00" oninput="saveSettings()">
+      </div>
+      <div class="settings-row">
+        <span class="settings-label">甲 早出</span>
+        <input class="settings-input" id="alarmKoEarly" value="00:30,00:45,01:00,01:15,01:30" oninput="saveSettings()">
+      </div>
+      <div class="settings-row">
+        <span class="settings-label">乙 定時</span>
+        <input class="settings-input" id="alarmOtsuRegular" value="12:00,12:15,12:30,12:45,13:00,13:15,13:30,14:00" oninput="saveSettings()">
+      </div>
+      <div class="settings-row">
+        <span class="settings-label">乙 早出</span>
+        <input class="settings-input" id="alarmOtsuEarly" value="08:00,08:15,08:30,08:45,09:00,09:15,09:30" oninput="saveSettings()">
+      </div>
+      <div class="settings-row">
+        <span class="settings-label">丙 定時</span>
+        <input class="settings-input" id="alarmHeiRegular" value="20:00,20:15,20:30,20:45,21:00,21:15,21:30,22:00" oninput="saveSettings()">
+      </div>
+      <div class="settings-row">
+        <span class="settings-label">丙 早出</span>
+        <input class="settings-input" id="alarmHeiEarly" value="16:00,16:15,16:30,16:45,17:00,17:15,17:30" oninput="saveSettings()">
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <div class="settings-section-title">勤務表写真の読み取り</div>
+      <div class="settings-row">
+        <span class="settings-label">写真追加時に自動セット</span>
+        <input type="checkbox" id="alarmAutoEnabled" checked onchange="saveSettings()">
+      </div>
+      <div class="settings-row">
+        <span class="settings-label">対象の名前</span>
+        <input class="settings-input" id="alarmWorkerName" value="白石" oninput="saveSettings()">
+      </div>
+      <div class="settings-row">
+        <span class="settings-label">アラーム判定の組</span>
+        <select class="settings-input" id="alarmGroup" onchange="saveSettings(); armSavedAlarms()">
+          <option value="A">A組</option>
+          <option value="B">B組</option>
+          <option value="C">C組</option>
+          <option value="D">D組</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <div class="settings-section-title">アラーム音</div>
+      <div class="settings-row">
+        <span class="settings-label">音色</span>
+        <select class="settings-input" id="alarmSound" onchange="saveSettings()">
+          <option value="standard">標準</option>
+          <option value="bright">高音</option>
+          <option value="deep">低音</option>
+          <option value="pulse">連続</option>
+          <option value="urgent">緊急</option>
+          <option value="chime">チャイム</option>
+          <option value="ode">歓喜の歌</option>
+          <option value="canon">カノン風</option>
+          <option value="westminster">時計台</option>
+          <option value="wakebell">大音量ベル</option>
+          <option value="siren">サイレン</option>
+          <option value="radar">レーダー風</option>
+          <option value="classicAlarm">目覚まし時計</option>
+        </select>
+      </div>
+      <button class="btn-secondary" onclick="previewAlarmSound()">選んだ音を聴く</button>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+        <button class="btn-secondary" onclick="previewAndSelectAlarmSound('standard')">標準を聴く</button>
+        <button class="btn-secondary" onclick="previewAndSelectAlarmSound('bright')">高音を聴く</button>
+        <button class="btn-secondary" onclick="previewAndSelectAlarmSound('deep')">低音を聴く</button>
+        <button class="btn-secondary" onclick="previewAndSelectAlarmSound('pulse')">連続を聴く</button>
+        <button class="btn-secondary" onclick="previewAndSelectAlarmSound('urgent')">緊急を聴く</button>
+        <button class="btn-secondary" onclick="previewAndSelectAlarmSound('chime')">チャイムを聴く</button>
+        <button class="btn-secondary" onclick="previewAndSelectAlarmSound('ode')">歓喜の歌を聴く</button>
+        <button class="btn-secondary" onclick="previewAndSelectAlarmSound('canon')">カノン風を聴く</button>
+        <button class="btn-secondary" onclick="previewAndSelectAlarmSound('westminster')">時計台を聴く</button>
+        <button class="btn-secondary" onclick="previewAndSelectAlarmSound('wakebell')">大音量ベルを聴く</button>
+        <button class="btn-secondary" onclick="previewAndSelectAlarmSound('siren')">サイレンを聴く</button>
+        <button class="btn-secondary" onclick="previewAndSelectAlarmSound('radar')">レーダー風を聴く</button>
+        <button class="btn-secondary" onclick="previewAndSelectAlarmSound('classicAlarm')" style="grid-column:1 / -1">目覚まし時計を聴く</button>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <div class="settings-section-title">子供の名前</div>
+      <div class="child-list" id="childList"></div>
+      <button class="add-child-btn" onclick="addChild()">＋ 子供を追加</button>
+    </div>
+
+    <div class="settings-section">
+      <div class="settings-section-title">Claude API キー（下校時間OCR用）</div>
+      <div style="font-size:12px;color:#6B7280;margin-bottom:4px">写真から下校時間を自動読み取りするために必要です</div>
+      <input class="api-key-input" type="password" id="apiKey" placeholder="sk-ant-..." oninput="saveSettings()">
+    </div>
+
+    <div class="settings-section">
+      <div class="settings-section-title">🔄 TimeTree連携</div>
+      <div style="font-size:12px;color:#6B7280;margin-bottom:6px">
+        TimeTree → 設定 → 連携サービス → Personal Access Token で取得
+      </div>
+      <input class="api-key-input" type="password" id="ttToken" placeholder="Personal Access Token"
+        oninput="saveSettings(); updateTTSyncBtn()">
+      <div id="ttCalSection" style="display:none;margin-top:8px">
+        <div style="font-size:12px;color:#6B7280;margin-bottom:4px">同期するカレンダー</div>
+        <select class="settings-input" id="ttCalendarId" onchange="saveSettings()">
+          <option value="">カレンダーを選択...</option>
+        </select>
+      </div>
+      <button onclick="loadTTCalendars()" style="
+        margin-top:8px;padding:8px 16px;border:1.5px solid var(--primary);
+        background:white;color:var(--primary);border-radius:8px;
+        font-size:13px;font-weight:600;cursor:pointer;width:100%">
+        📋 カレンダー一覧を取得
+      </button>
+      <div id="ttStatus" style="font-size:12px;margin-top:6px;color:#6B7280"></div>
+    </div>
+  </div>
+</div>
+
+<!-- DAY DETAIL MODAL -->
+<div class="modal-overlay" id="dayModal" onclick="closeModalOnBg(event,'dayModal')">
+  <div class="modal-box">
+    <div class="modal-handle"></div>
+    <button class="modal-close" onclick="closeModal('dayModal')">×</button>
+    <div class="modal-title" id="dayModalTitle"></div>
+
+    <!-- Shift info -->
+    <div id="dayModalShift" style="margin-bottom:16px"></div>
+    <button class="btn-secondary" onclick="cancelAlarmsForDate(formatDateStr(selectedDate))">この日のアラームを全解除</button>
+
+    <!-- Events section -->
+    <div class="settings-section">
+      <div class="settings-section-title">📌 予定</div>
+      <div class="event-list" id="dayEventList"></div>
+      <button class="add-event-btn" onclick="openAddEventModal()">＋ 予定を追加</button>
+    </div>
+
+    <!-- School times -->
+    <div class="settings-section">
+      <div class="settings-section-title">🏫 下校時間</div>
+      <div id="daySchoolInputs"></div>
+    </div>
+
+    <!-- Memo -->
+    <div class="settings-section">
+      <div class="settings-section-title">📝 メモ</div>
+      <textarea id="dayMemo" rows="3"
+        style="width:100%;padding:8px;border:1px solid #E5E7EB;border-radius:8px;font-size:14px;resize:none;outline:none;font-family:inherit"
+        oninput="saveDayData()" placeholder="メモを入力..."></textarea>
+    </div>
+
+    <button class="btn-secondary" onclick="closeModal('dayModal')">閉じる</button>
+  </div>
+</div>
+
+<!-- ADD/EDIT EVENT MODAL -->
+<div class="modal-overlay" id="eventEditModal" onclick="closeModalOnBg(event,'eventEditModal')">
+  <div class="modal-box">
+    <div class="modal-handle"></div>
+    <button class="modal-close" onclick="closeModal('eventEditModal')">×</button>
+    <div class="modal-title" id="eventEditTitle">予定を追加</div>
+
+    <div class="event-form-row">
+      <label class="event-form-label">タイトル</label>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">
+        <button class="preset-btn" onclick="setPresetTitle('有給')">有給</button>
+        <button class="preset-btn" onclick="setPresetTitle('エルプランタン')">エルプランタン</button>
+        <button class="preset-btn" onclick="setPresetTitle('倉式珈琲')">倉式珈琲</button>
+      </div>
+      <input class="event-title-input" id="evtTitleInput" placeholder="手打ち入力もできます..." maxlength="30"
+        oninput="document.querySelectorAll('.preset-btn').forEach(b=>b.classList.remove('selected'))">
+    </div>
+
+    <div class="event-form-row">
+      <label class="event-form-label">開始日時</label>
+      <div style="display:flex;gap:6px;align-items:center">
+        <input class="event-date-input" type="date" id="evtStartDate">
+        <input class="event-time-input" type="time" id="evtStartTime" style="flex:1">
+      </div>
+    </div>
+    <div class="event-form-row">
+      <label class="event-form-label">終了日時</label>
+      <div style="display:flex;gap:6px;align-items:center">
+        <input class="event-date-input" type="date" id="evtEndDate">
+        <input class="event-time-input" type="time" id="evtEndTime" style="flex:1">
+      </div>
+    </div>
+
+    <div class="event-form-row">
+      <label class="event-form-label">色</label>
+      <div class="color-swatches" id="evtColorSwatches"></div>
+    </div>
+
+    <div class="event-form-row">
+      <label class="event-form-label">メモ（任意）</label>
+      <textarea id="evtMemoInput" rows="3"
+        style="width:100%;padding:10px 12px;border:1px solid #E5E7EB;border-radius:8px;font-size:14px;resize:none;outline:none;font-family:inherit;color:#374151"
+        placeholder="詳細・備考など..."></textarea>
+    </div>
+
+    <button class="btn-primary" onclick="saveEvent()">保存</button>
+    <button class="btn-secondary" onclick="closeModal('eventEditModal')">キャンセル</button>
+    <button class="btn-danger" id="evtDeleteBtn" onclick="deleteCurrentEvent()" style="display:none">この予定を削除</button>
+  </div>
+</div>
+
+<!-- PHOTO OCR MODAL -->
+<div class="modal-overlay" id="photoModal" onclick="closeModalOnBg(event,'photoModal')">
+  <div class="modal-box">
+    <div class="modal-handle"></div>
+    <button class="modal-close" onclick="closeModal('photoModal')">×</button>
+    <div class="modal-title">📸 下校時間を読み込む</div>
+
+    <div class="settings-section">
+      <div class="settings-section-title">対象の子供</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap" id="ocrChildSelect"></div>
+    </div>
+
+    <div class="settings-section">
+      <div class="settings-section-title">対象月</div>
+      <input class="settings-input" type="month" id="ocrMonth" style="width:160px">
+    </div>
+
+    <div class="settings-section" id="ocrGradeRow" style="display:none">
+      <div class="settings-section-title">学年</div>
+      <div id="ocrGradeLabel" style="font-size:14px;font-weight:600;color:#4F46E5"></div>
+    </div>
+
+    <!-- Three buttons: camera + gallery + PDF -->
+    <div class="photo-btns">
+      <div class="photo-btn">
+        <input type="file" id="photoCameraInput" accept="image/*" capture="environment" onchange="handlePhotoSelect(event)">
+        <div class="photo-btn-icon">📷</div>
+        <div class="photo-btn-label">カメラで撮る</div>
+      </div>
+      <div class="photo-btn">
+        <input type="file" id="photoGalleryInput" accept="image/*" onchange="handlePhotoSelect(event)">
+        <div class="photo-btn-icon">🖼️</div>
+        <div class="photo-btn-label">写真から選ぶ</div>
+      </div>
+      <div class="photo-btn">
+        <input type="file" id="photoPdfInput" accept="application/pdf" onchange="handlePhotoSelect(event)">
+        <div class="photo-btn-icon">📄</div>
+        <div class="photo-btn-label">PDFから選ぶ</div>
+      </div>
+    </div>
+
+    <div class="ocr-preview" id="ocrPreview">
+      <img id="ocrPreviewImg" src="" alt="プレビュー">
+    </div>
+
+    <div id="ocrManualEdit" style="display:none;margin-top:10px">
+      <div style="font-size:13px;font-weight:600;color:#374151;margin-bottom:6px">確認・修正：</div>
+      <div style="max-height:280px;overflow-y:auto">
+        <table class="school-schedule-table" id="ocrTable"></table>
+      </div>
+    </div>
+
+    <div id="ocrActionArea" style="display:none;margin-top:12px">
+      <button class="btn-primary" onclick="applyOcrResult()">✅ カレンダーに反映する</button>
+    </div>
+  </div>
+</div>
+
+<!-- WORK SCHEDULE MODAL -->
+<div class="modal-overlay" id="workModal" onclick="closeModalOnBg(event,'workModal')">
+  <div class="modal-box" style="max-height:92vh;display:flex;flex-direction:column">
+    <div class="modal-handle"></div>
+
+    <!-- ヘッダー行 -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-shrink:0">
+      <div class="modal-title" style="margin:0">📋 勤務表</div>
+      <div style="display:flex;gap:8px">
+        <button id="workSelectBtn" onclick="toggleWorkSelectMode()"
+          style="padding:6px 12px;border:1.5px solid #E5E7EB;border-radius:8px;
+                 background:white;font-size:13px;font-weight:600;cursor:pointer;color:#374151">
+          選択
+        </button>
+        <label style="padding:6px 12px;border-radius:8px;cursor:pointer;
+                      background:var(--primary);color:white;font-size:13px;font-weight:600">
+          <input type="file" id="workPhotoInput" accept="image/*" style="display:none"
+            onchange="handleWorkPhoto(event)">
+          ＋ 追加
+        </label>
+      </div>
+    </div>
+
+    <!-- 月ラベル入力（追加時） -->
+    <div id="workLabelRow" style="display:none;margin-bottom:8px;flex-shrink:0">
+      <input id="workLabelInput" class="settings-input" placeholder="例：2026年6月"
+        style="margin-bottom:0">
+    </div>
+
+    <!-- 削除バー（選択モード時） -->
+    <div id="workDeleteBar" style="display:none;margin-bottom:8px;flex-shrink:0">
+      <button onclick="deleteSelectedWorks()"
+        style="width:100%;padding:10px;background:#EF4444;color:white;
+               border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer">
+        🗑️ 選択した写真を削除
+      </button>
+    </div>
+
+    <!-- ステータス -->
+    <div id="workStatus" style="font-size:12px;color:#6B7280;text-align:center;
+      flex-shrink:0;min-height:16px;margin-bottom:4px"></div>
+
+    <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:#374151;
+      padding:8px 4px;flex-shrink:0">
+      <input type="checkbox" id="workAlarmAutoEnabled" checked onchange="setAutoAlarmEnabled(this.checked)">
+      アラームON（写真追加時に一月分を自動セット）
+    </label>
+
+    <!-- ギャラリー -->
+    <div id="workGallery" style="overflow-y:auto;flex:1;padding-bottom:8px"></div>
+  </div>
+</div>
+
+<!-- 勤務表フルスクリーンビューア -->
+<div id="workViewer" style="display:none;position:fixed;inset:0;z-index:9000;
+  background:rgba(0,0,0,0.95);flex-direction:column" onclick="closeWorkViewer()">
+  <div style="display:flex;align-items:center;justify-content:space-between;
+    padding:12px 16px;color:white;flex-shrink:0" onclick="event.stopPropagation()">
+    <div id="workViewerTitle" style="font-size:16px;font-weight:700"></div>
+    <button onclick="closeWorkViewer()"
+      style="background:rgba(255,255,255,0.2);border:none;color:white;
+             border-radius:50%;width:32px;height:32px;font-size:18px;cursor:pointer">×</button>
+  </div>
+  <div style="flex:1;overflow:auto;display:flex;align-items:center;justify-content:center;padding:8px">
+    <img id="workViewerImg" src="" alt="勤務表"
+      style="max-width:100%;max-height:100%;object-fit:contain;border-radius:4px">
+  </div>
+</div>
+
+<!-- EXPORT MODAL -->
+<div class="modal-overlay" id="exportModal" onclick="closeModalOnBg(event,'exportModal')">
+  <div class="modal-box">
+    <div class="modal-handle"></div>
+    <button class="modal-close" onclick="closeModal('exportModal')">×</button>
+    <div class="modal-title">📤 エクスポート</div>
+
+    <div class="export-info">
+      iCal形式でダウンロードして<strong>TimeTree</strong>に取り込めます。<br>
+      TimeTree → カレンダー設定 → iCalインポート
+    </div>
+
+    <div class="settings-section">
+      <div class="settings-section-title">エクスポート設定</div>
+      <div class="settings-row">
+        <span class="settings-label">開始月</span>
+        <input class="settings-input" type="month" id="exportFrom" value="2026-04">
+      </div>
+      <div class="settings-row">
+        <span class="settings-label">終了月</span>
+        <input class="settings-input" type="month" id="exportTo" value="2027-03">
+      </div>
+      <div class="settings-row">
+        <span class="settings-label">組</span>
+        <select class="settings-input" id="exportGroup">
+          <option value="A">A組</option>
+          <option value="B">B組</option>
+          <option value="C">C組</option>
+          <option value="D">D組</option>
+        </select>
+      </div>
+      <div class="settings-row">
+        <span class="settings-label">休みも含む</span>
+        <input type="checkbox" id="exportIncludeOff" checked style="width:20px;height:20px;cursor:pointer">
+      </div>
+    </div>
+
+    <button class="btn-primary" onclick="exportICal()">📥 ダウンロード</button>
+    <button class="btn-secondary" onclick="closeModal('exportModal')">閉じる</button>
+  </div>
+</div>
+
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+
+<script>
+// =====================================================================
+// FIREBASE
+// =====================================================================
+
+const firebaseConfig = {
+  apiKey: "AIzaSyAQh9QmHuaq4LtjmzIcHtNOX1O7Fmq08Z8",
+  authDomain: "shift-calendar-40605.firebaseapp.com",
+  databaseURL: "https://shift-calendar-40605-default-rtdb.firebaseio.com",
+  projectId: "shift-calendar-40605",
+  storageBucket: "shift-calendar-40605.firebasestorage.app",
+  messagingSenderId: "950822266155",
+  appId: "1:950822266155:web:c820065cde9cca9e85116e"
+};
+
+firebase.initializeApp(firebaseConfig);
+const _db   = firebase.database();
+const _auth = firebase.auth();
+const _dataRef = _db.ref('shiftCalData');
+
+let _cachedData = {};
+let _firebaseReady = false;
+let _ignoreNextUpdate = false; // 自分のwrite後の余分な再レンダリング抑制
+
+// 匿名サインイン → 認証済みユーザーのみデータアクセス可能
+_auth.signInAnonymously().catch(e => console.warn('Auth error:', e));
+
+_auth.onAuthStateChanged(user => {
+  if (!user) return; // 未認証は何もしない
+  // リアルタイムリスナー：他デバイスの変更を即反映
+  _dataRef.on('value', (snapshot) => {
+    _cachedData = snapshot.val() || {};
+    _firebaseReady = true;
+    if (_ignoreNextUpdate) { _ignoreNextUpdate = false; return; }
+    renderCalendar();
+    armSavedAlarms();
+    // 開いているdayModalのイベントリストも更新
+    if (document.getElementById('dayModal').classList.contains('open') && editingDateStr) {
+      renderDayEventList(editingDateStr);
+    }
+    hideLoading();
+  });
+});
+
+// =====================================================================
+// AUTH
+// =====================================================================
+
+async function sha256(text) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+}
+
+function isAuthenticated() {
+  const expiry = localStorage.getItem('authExpiry');
+  return expiry && Date.now() < parseInt(expiry);
+}
+
+function checkAuth() {
+  if (isAuthenticated()) {
+    document.getElementById('loginScreen').style.display = 'none';
+  }
+  // ログイン画面は表示されたまま（Firebase読み込み後も）
+}
+
+async function doLogin() {
+  const input = document.getElementById('loginInput').value;
+  if (!input) return;
+  const hash = await sha256(input);
+  let storedHash = (getSettings().passwordHash) || '';
+  // Firebaseがまだ読み込まれていない場合は直接REST APIから取得
+  if (!storedHash) {
+    try {
+      const res = await fetch('https://shift-calendar-40605-default-rtdb.firebaseio.com/shiftCalData/settings/passwordHash.json');
+      storedHash = (await res.json()) || '';
+    } catch(e) {}
+  }
+  if (hash === storedHash) {
+    // 30日間認証を保持
+    localStorage.setItem('authExpiry', Date.now() + 30 * 24 * 60 * 60 * 1000);
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('loginInput').value = '';
+  } else {
+    document.getElementById('loginError').style.display = 'block';
+    document.getElementById('loginInput').style.borderColor = '#EF4444';
+    document.getElementById('loginInput').select();
+  }
+}
+
+// =====================================================================
+// CONSTANTS
+// =====================================================================
+
+const REF_DATE = new Date(2026, 3, 1);
+const CYCLE_LENGTH = 20;
+const INITIAL_POSITIONS = { A: 14, B: 9, C: 4, D: 19 };
+
+const EVENT_COLORS = [
+  '#EF4444','#F97316','#EAB308','#22C55E',
+  '#3B82F6','#8B5CF6','#EC4899','#6B7280',
+  '#14B8A6','#F59E0B'
+];
+
+// =====================================================================
+// SHIFT ENGINE
+// =====================================================================
+
+function getShift(group, date) {
+  const refTime = REF_DATE.getTime();
+  const targetTime = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  const daysDiff = Math.round((targetTime - refTime) / 86400000);
+  const pos = ((INITIAL_POSITIONS[group] + daysDiff) % CYCLE_LENGTH + CYCLE_LENGTH) % CYCLE_LENGTH;
+  if (pos <= 4)             return 'ko';
+  if (pos <= 6)             return 'off';
+  if (pos <= 11)            return 'otsu';
+  if (pos === 12)           return 'off';
+  if (pos <= 17)            return 'hei';
+  return 'off';
+}
+
+function getShiftInfo() {
+  const s = getSettings();
+  const labelKo   = s.labelKo   || '甲（日勤）';
+  const labelOtsu = s.labelOtsu || '乙（準夜勤）';
+  const labelHei  = s.labelHei  || '丙（夜勤）';
+  const labelOff  = s.labelOff  || '休み';
+  // Badge = first character of label
+  return {
+    ko:   { label: labelKo,   badge: labelKo[0]   || '甲', icon: '☀️',  cls: 'badge-ko'   },
+    otsu: { label: labelOtsu, badge: labelOtsu[0] || '乙', icon: '🌇', cls: 'badge-otsu' },
+    hei:  { label: labelHei,  badge: labelHei[0]  || '丙', icon: '🌙', cls: 'badge-hei'  },
+    off:  { label: labelOff,  badge: labelOff[0]  || '休', icon: '🏠', cls: 'badge-off'  },
+  };
+}
+
+// =====================================================================
+// STATE
+// =====================================================================
+
+let currentGroup = 'A';
+let currentYear  = new Date().getFullYear();
+let currentMonth = new Date().getMonth();
+let selectedDate = null;
+let currentOcrData = null;
+let currentOcrChildId = null;
+let editingEventId = null;     // null = new event
+let editingDateStr = null;
+let alarmSelectedShift = 'ko';
+let alarmSelectedMode = 'regular';
+let alarmTargetDate = null;
+let alarmTimers = {};
+let ringingAlarmTimer = null;
+let ringingAlarmAudio = null;
+
+// =====================================================================
+// DATA ACCESS (Firebase同期)
+// =====================================================================
+
+function loadData() {
+  return JSON.parse(JSON.stringify(_cachedData)); // deep copy
+}
+
+function saveData(data) {
+  _cachedData = data;
+  _dataRef.set(data); // Firebaseに書き込み → 他デバイスのリスナーが発火
+}
+
+function getSettings() {
+  const data = loadData();
+  return Object.assign({
+    nameA:'A組', nameB:'B組', nameC:'C組', nameD:'D組',
+    labelKo:'甲（日勤）', labelOtsu:'乙（準夜勤）', labelHei:'丙（夜勤）', labelOff:'休み',
+    timeKo:'8:00-16:30', timeOtsu:'16:00-0:30', timeHei:'0:00-8:30',
+    alarmKoRegular:'04:00,04:15,04:30,04:45,05:00,05:15,05:30,06:00',
+    alarmKoEarly:'00:30,00:45,01:00,01:15,01:30',
+    alarmOtsuRegular:'12:00,12:15,12:30,12:45,13:00,13:15,13:30,14:00',
+    alarmOtsuEarly:'08:00,08:15,08:30,08:45,09:00,09:15,09:30',
+    alarmHeiRegular:'20:00,20:15,20:30,20:45,21:00,21:15,21:30,22:00',
+    alarmHeiEarly:'16:00,16:15,16:30,16:45,17:00,17:15,17:30',
+    alarmWorkerName:'白石', alarmGroup:'C', alarmAutoEnabled:true, alarmSound:'standard',
+    children:[], apiKey:'', ttToken:'', ttCalendarId:'', ttCalendars:[]
+  }, data.settings || {});
+}
+
+function getDayData(dateStr) {
+  const data = loadData();
+  return Object.assign({ schoolTimes:{}, memo:'' }, data.days?.[dateStr] || {});
+}
+
+function saveDayRecord(dateStr, record) {
+  const data = loadData();
+  if (!data.days) data.days = {};
+  // Remove events key if somehow present (legacy)
+  delete record.events;
+  data.days[dateStr] = record;
+  _ignoreNextUpdate = true; // 自分のwriteによる再レンダリングをスキップ
+  saveData(data);
+}
+
+function getGlobalEvents() {
+  return loadData().events || [];
+}
+
+function saveGlobalEvents(events) {
+  const data = loadData();
+  data.events = events;
+  _ignoreNextUpdate = true;
+  saveData(data);
+}
+
+function getDayEvents(dateStr) {
+  return getGlobalEvents().filter(evt => {
+    const es = evt.startDate || dateStr;
+    const ee = evt.endDate || evt.startDate || dateStr;
+    return es <= dateStr && ee >= dateStr;
+  });
+}
+
+// =====================================================================
+// RENDER CALENDAR
+// =====================================================================
+
+function renderCalendar() {
+  const settings = getSettings();
+  const SHIFT = getShiftInfo();
+  const today = new Date();
+  const COL_W = 100 / 7;
+
+  document.getElementById('monthTitle').textContent = `${currentYear}年${currentMonth + 1}月`;
+  document.getElementById('btn-A').textContent = settings.nameA;
+  document.getElementById('btn-B').textContent = settings.nameB;
+  document.getElementById('btn-C').textContent = settings.nameC;
+  document.getElementById('btn-D').textContent = settings.nameD;
+
+  // Update legend
+  document.getElementById('leg-ko').textContent   = SHIFT.ko.label;
+  document.getElementById('leg-otsu').textContent = SHIFT.otsu.label;
+  document.getElementById('leg-hei').textContent  = SHIFT.hei.label;
+  document.getElementById('leg-off').textContent  = SHIFT.off.label;
+
+  const grid = document.getElementById('daysGrid');
+  grid.innerHTML = '';
+
+  const firstDay    = new Date(currentYear, currentMonth, 1).getDay();
+  const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+
+  // Build flat array of cells: nulls for empties, Date objects for real days
+  const cells = [];
+  for (let i = 0; i < firstDay; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) {
+    cells.push(new Date(currentYear, currentMonth, d));
+  }
+  // Pad to full weeks
+  while (cells.length % 7 !== 0) cells.push(null);
+
+  const globalEvents = getGlobalEvents();
+  const children = settings.children || [];
+
+  // Render week by week
+  for (let weekStart = 0; weekStart < cells.length; weekStart += 7) {
+    const weekCells = cells.slice(weekStart, weekStart + 7);
+
+    // Week date strings for this week
+    const weekDates = weekCells.map(d => d ? formatDateStr(d) : null);
+    const weekFirstDate = weekCells.find(d => d !== null);
+    const weekLastDate  = weekCells.slice().reverse().find(d => d !== null);
+
+    // ── WEEK ROW CONTAINER ──
+    const weekRow = document.createElement('div');
+    weekRow.className = 'week-row';
+
+    // ── DAY CELLS (background + number + shift tag) ──
+    const dayCellsDiv = document.createElement('div');
+    dayCellsDiv.className = 'week-day-cells';
+
+    for (let col = 0; col < 7; col++) {
+      const date = weekCells[col];
+      const cell = document.createElement('div');
+
+      if (!date) {
+        cell.className = 'day-cell empty';
+      } else {
+        const dow     = date.getDay();
+        const shift   = getShift(currentGroup, date);
+        const info    = SHIFT[shift];
+        const isToday = date.toDateString() === today.toDateString();
+
+        cell.className = [
+          'day-cell',
+          `shift-${shift}`,
+          isToday ? 'today' : '',
+          dow === 0 ? 'is-sun' : '',
+          dow === 6 ? 'is-sat' : ''
+        ].filter(Boolean).join(' ');
+
+        const capturedDate = date;
+        cell.onclick = () => openDayDetail(capturedDate);
+
+        // Day number row
+        const numWrap = document.createElement('div');
+        numWrap.className = 'day-num-wrap';
+
+        const numDiv = document.createElement('div');
+        numDiv.className = 'day-num';
+        numDiv.textContent = date.getDate();
+        numWrap.appendChild(numDiv);
+
+        const tag = document.createElement('span');
+        tag.className = `shift-tag tag-${shift}`;
+        tag.textContent = info.badge;
+        numWrap.appendChild(tag);
+
+        cell.appendChild(numWrap);
+      }
+      dayCellsDiv.appendChild(cell);
+    }
+    weekRow.appendChild(dayCellsDiv);
+
+    // ── EVENTS LAYER ──
+    const eventsLayer = document.createElement('div');
+    eventsLayer.className = 'week-events-layer';
+
+    // Find events that overlap this week
+    if (weekFirstDate && weekLastDate) {
+      const weekFirstStr = formatDateStr(weekFirstDate);
+      const weekLastStr  = formatDateStr(weekLastDate);
+
+      const weekEvts = globalEvents
+        .filter(evt => {
+          const es = evt.startDate || '';
+          const ee = evt.endDate   || evt.startDate || '';
+          return es <= weekLastStr && ee >= weekFirstStr;
+        })
+        .map(evt => {
+          const es = evt.startDate || '';
+          const ee = evt.endDate   || evt.startDate || '';
+          // Find the start column: first real column whose date >= event start
+          let sc = 0;
+          for (let c = 0; c < 7; c++) {
+            if (weekDates[c] && weekDates[c] >= es) { sc = c; break; }
+          }
+          // Find the end column: last real column whose date <= event end
+          let ec = sc;
+          for (let c = 0; c <= 6; c++) {
+            if (weekDates[c] && weekDates[c] <= ee) ec = c;
+          }
+          return { ...evt, weekStartCol: sc, weekEndCol: ec };
+        });
+
+      // Level assignment to avoid overlap
+      const sorted = [...weekEvts].sort((a, b) =>
+        a.weekStartCol - b.weekStartCol ||
+        (b.weekEndCol - b.weekStartCol) - (a.weekEndCol - a.weekStartCol)
+      );
+      const levels = [];
+      for (const evt of sorted) {
+        let placed = false;
+        for (let i = 0; i < levels.length; i++) {
+          if (!levels[i].some(e =>
+            evt.weekStartCol <= e.weekEndCol && evt.weekEndCol >= e.weekStartCol
+          )) {
+            levels[i].push(evt);
+            evt.level = i;
+            placed = true;
+            break;
+          }
+        }
+        if (!placed) {
+          evt.level = levels.length;
+          levels.push([evt]);
+        }
+      }
+
+      // Render event rows
+      const numLevels = levels.length;
+      for (let lvl = 0; lvl < numLevels; lvl++) {
+        const row = document.createElement('div');
+        row.className = 'events-row';
+        for (const evt of sorted.filter(e => e.level === lvl)) {
+          const sc = evt.weekStartCol;
+          const ec = evt.weekEndCol;
+          const bar = document.createElement('div');
+          bar.className = 'event-bar';
+          bar.style.background = evt.color || '#6B7280';
+          bar.style.left  = `calc(${sc * COL_W}% + 1px)`;
+          bar.style.width = `calc(${(ec - sc + 1) * COL_W}% - 2px)`;
+
+          if (evt.startTime) {
+            const tSpan = document.createElement('span');
+            tSpan.className = 'event-bar-time';
+            tSpan.textContent = evt.startTime;
+            bar.appendChild(tSpan);
+          }
+          const titleSpan = document.createElement('span');
+          titleSpan.className = 'event-bar-title';
+          titleSpan.textContent = evt.title;
+          bar.appendChild(titleSpan);
+
+          bar.onclick = (e) => {
+            e.stopPropagation();
+            // Open the day detail for startDate, then open edit modal
+            const startDateObj = evt.startDate
+              ? new Date(evt.startDate + 'T00:00:00')
+              : weekFirstDate;
+            selectedDate = startDateObj;
+            editingDateStr = evt.startDate || formatDateStr(weekFirstDate);
+            openEditEventModal(evt.id);
+          };
+          row.appendChild(bar);
+        }
+        eventsLayer.appendChild(row);
+      }
+
+      // School times row
+      const hasSchool = children.some(child =>
+        weekDates.some(ds => ds && getDayData(ds).schoolTimes?.[child.id])
+      );
+      if (hasSchool) {
+        const schoolRow = document.createElement('div');
+        schoolRow.className = 'school-row';
+        for (let col = 0; col < 7; col++) {
+          const ds = weekDates[col];
+          if (!ds) continue;
+          const dayData = getDayData(ds);
+          for (const child of children) {
+            const t = (dayData.schoolTimes || {})[child.id];
+            if (t) {
+              const sb = document.createElement('div');
+              sb.className = 'school-bar';
+              sb.style.left  = `calc(${col * COL_W}% + 1px)`;
+              sb.style.width = `calc(${COL_W}% - 2px)`;
+              sb.textContent = `🏫${t}`;
+              schoolRow.appendChild(sb);
+            }
+          }
+        }
+        eventsLayer.appendChild(schoolRow);
+      }
+    }
+
+    weekRow.appendChild(eventsLayer);
+    grid.appendChild(weekRow);
+  }
+}
+
+// =====================================================================
+// DAY DETAIL MODAL
+// =====================================================================
+
+function openDayDetail(date) {
+  selectedDate = date;
+  const settings = getSettings();
+  const SHIFT    = getShiftInfo();
+  const dateStr  = formatDateStr(date);
+  const shift    = getShift(currentGroup, date);
+  const info     = SHIFT[shift];
+  const dayData  = getDayData(dateStr);
+  const dow      = ['日','月','火','水','木','金','土'][date.getDay()];
+
+  document.getElementById('dayModalTitle').textContent =
+    `${date.getMonth()+1}月${date.getDate()}日（${dow}）`;
+
+  // Shift card
+  const timeStr = shift === 'ko'   ? settings.timeKo
+                : shift === 'otsu' ? settings.timeOtsu
+                : shift === 'hei'  ? settings.timeHei
+                : '';
+  document.getElementById('dayModalShift').innerHTML = `
+    <div style="display:flex;align-items:center;gap:10px;padding:10px;border-radius:8px;background:var(--${shift === 'off' ? 'off' : shift}-light)">
+      <span style="font-size:22px">${info.icon}</span>
+      <div>
+        <div style="font-size:15px;font-weight:700">${info.label}</div>
+        ${timeStr ? `<div style="font-size:13px;color:#6B7280;margin-top:2px">${timeStr}</div>` : ''}
+      </div>
+    </div>`;
+
+  // Events list
+  renderDayEventList(dateStr);
+
+  // School times
+  const schoolDiv = document.getElementById('daySchoolInputs');
+  schoolDiv.innerHTML = '';
+  const children = settings.children || [];
+  if (children.length === 0) {
+    schoolDiv.innerHTML = '<div style="color:#6B7280;font-size:13px">設定から子供を追加してください</div>';
+  } else {
+    for (const child of children) {
+      const t = (dayData.schoolTimes || {})[child.id] || '';
+      const row = document.createElement('div');
+      row.className = 'settings-row';
+      row.innerHTML = `
+        <span class="school-child-tag">${child.name}</span>
+        <input type="time" class="settings-input" value="${t}" style="width:110px"
+          onchange="updateSchoolTime('${dateStr}','${child.id}',this.value)">`;
+      schoolDiv.appendChild(row);
+    }
+  }
+
+  // Memo
+  document.getElementById('dayMemo').value = dayData.memo || '';
+
+  openModal('dayModal');
+}
+
+function renderDayEventList(dateStr) {
+  const events  = getDayEvents(dateStr);
+  const listDiv = document.getElementById('dayEventList');
+  listDiv.innerHTML = '';
+
+  for (const evt of events) {
+    const item = document.createElement('div');
+    item.className = 'event-item';
+
+    // Show date range if multi-day
+    let timeLabel = '';
+    const isMultiDay = evt.startDate && evt.endDate && evt.startDate !== evt.endDate;
+    if (isMultiDay) {
+      timeLabel = `${evt.startDate}〜${evt.endDate}`;
+      if (evt.startTime) timeLabel += ` ${evt.startTime}`;
+      if (evt.endTime)   timeLabel += `〜${evt.endTime}`;
+    } else if (evt.startTime || evt.endTime) {
+      timeLabel = `${evt.startTime || ''}${evt.endTime ? '〜'+evt.endTime : ''}`;
+    }
+
+    item.innerHTML = `
+      <div class="event-color-dot" style="background:${evt.color || '#6B7280'}"></div>
+      <div style="flex:1;min-width:0">
+        <div class="event-item-title">${escHtml(evt.title)}</div>
+        ${timeLabel ? `<div class="event-item-time">${escHtml(timeLabel)}</div>` : ''}
+        ${evt.memo ? `<div style="font-size:12px;color:#6B7280;margin-top:2px;white-space:pre-wrap;word-break:break-all">${escHtml(evt.memo)}</div>` : ''}
+      </div>
+      <button class="event-item-del" onclick="event.stopPropagation();deleteEventById('${evt.id}')">×</button>`;
+    item.onclick = () => openEditEventModal(evt.id);
+    listDiv.appendChild(item);
+  }
+}
+
+function updateSchoolTime(dateStr, childId, time) {
+  const dayData = getDayData(dateStr);
+  if (!dayData.schoolTimes) dayData.schoolTimes = {};
+  dayData.schoolTimes[childId] = time;
+  saveDayRecord(dateStr, dayData);
+  renderCalendar();
+}
+
+function saveDayData() {
+  if (!selectedDate) return;
+  const dateStr = formatDateStr(selectedDate);
+  const dayData = getDayData(dateStr);
+  dayData.memo  = document.getElementById('dayMemo').value;
+  saveDayRecord(dateStr, dayData);
+}
+
+// =====================================================================
+// EVENT CRUD
+// =====================================================================
+
+let evtSelectedColor = EVENT_COLORS[4]; // blue default
+
+function openAddEventModal() {
+  if (!selectedDate) return;
+  editingEventId = null;
+  editingDateStr = formatDateStr(selectedDate);
+  evtSelectedColor = EVENT_COLORS[4];
+
+  const dateVal = editingDateStr;
+  document.getElementById('eventEditTitle').textContent = '予定を追加';
+  document.getElementById('evtTitleInput').value  = '';
+  document.getElementById('evtStartDate').value   = dateVal;
+  document.getElementById('evtStartTime').value   = '';
+  document.getElementById('evtEndDate').value     = dateVal;
+  document.getElementById('evtEndTime').value     = '';
+  document.getElementById('evtMemoInput').value   = '';
+  document.getElementById('evtDeleteBtn').style.display = 'none';
+  document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('selected'));
+  renderColorSwatches();
+  openModal('eventEditModal');
+  setTimeout(() => document.getElementById('evtTitleInput').focus(), 100);
+}
+
+function openEditEventModal(evtId) {
+  const events = getGlobalEvents();
+  const evt    = events.find(e => e.id === evtId);
+  if (!evt) return;
+
+  editingEventId = evtId;
+  editingDateStr = evt.startDate || formatDateStr(selectedDate);
+  evtSelectedColor = evt.color || EVENT_COLORS[4];
+
+  document.getElementById('eventEditTitle').textContent = '予定を編集';
+  document.getElementById('evtTitleInput').value  = evt.title     || '';
+  document.getElementById('evtStartDate').value   = evt.startDate || editingDateStr;
+  document.getElementById('evtStartTime').value   = evt.startTime || '';
+  document.getElementById('evtEndDate').value     = evt.endDate   || evt.startDate || editingDateStr;
+  document.getElementById('evtEndTime').value     = evt.endTime   || '';
+  document.getElementById('evtMemoInput').value   = evt.memo      || '';
+  document.getElementById('evtDeleteBtn').style.display = 'block';
+  // プリセット選択状態を反映
+  document.querySelectorAll('.preset-btn').forEach(b => {
+    b.classList.toggle('selected', b.textContent === evt.title);
+  });
+  renderColorSwatches();
+  openModal('eventEditModal');
+}
+
+function setPresetTitle(title) {
+  document.getElementById('evtTitleInput').value = title;
+  // ハイライト切替
+  document.querySelectorAll('.preset-btn').forEach(b => {
+    b.classList.toggle('selected', b.textContent === title);
+  });
+}
+
+function renderColorSwatches() {
+  const container = document.getElementById('evtColorSwatches');
+  container.innerHTML = '';
+  for (const c of EVENT_COLORS) {
+    const sw = document.createElement('div');
+    sw.className = 'color-swatch' + (c === evtSelectedColor ? ' selected' : '');
+    sw.style.background = c;
+    sw.onclick = () => {
+      evtSelectedColor = c;
+      container.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('selected'));
+      sw.classList.add('selected');
+    };
+    container.appendChild(sw);
+  }
+}
+
+function saveEvent() {
+  const title = document.getElementById('evtTitleInput').value.trim();
+  if (!title) { showToast('タイトルを入力してください'); return; }
+
+  const startDate = document.getElementById('evtStartDate').value || editingDateStr;
+  const endDate   = document.getElementById('evtEndDate').value   || startDate;
+
+  const evtData = {
+    id:        editingEventId || 'evt_' + Date.now(),
+    title:     title,
+    color:     evtSelectedColor,
+    startDate: startDate,
+    startTime: document.getElementById('evtStartTime').value || '',
+    endDate:   endDate,
+    endTime:   document.getElementById('evtEndTime').value   || '',
+    memo:      document.getElementById('evtMemoInput').value || '',
+  };
+
+  let events = getGlobalEvents();
+  if (editingEventId) {
+    const idx = events.findIndex(e => e.id === editingEventId);
+    if (idx >= 0) events[idx] = evtData;
+    else events.push(evtData);
+  } else {
+    events.push(evtData);
+  }
+
+  saveGlobalEvents(events);
+  renderCalendar();
+  renderDayEventList(editingDateStr);
+  closeModal('eventEditModal');
+  showToast('予定を保存しました');
+}
+
+function deleteCurrentEvent() {
+  if (!editingEventId) return;
+  deleteEventById(editingEventId);
+  closeModal('eventEditModal');
+}
+
+function deleteEventById(evtId) {
+  const events = getGlobalEvents().filter(e => e.id !== evtId);
+  saveGlobalEvents(events);
+  renderCalendar();
+  if (editingDateStr) renderDayEventList(editingDateStr);
+  showToast('予定を削除しました');
+}
+
+// =====================================================================
+// ALARMS
+// =====================================================================
+
+function getAlarmStorageKey() {
+  return 'shiftCalendarScheduledAlarms';
+}
+
+function loadScheduledAlarms() {
+  try {
+    return JSON.parse(localStorage.getItem(getAlarmStorageKey()) || '[]');
+  } catch(e) {
+    return [];
+  }
+}
+
+function saveScheduledAlarms(alarms) {
+  localStorage.setItem(getAlarmStorageKey(), JSON.stringify(alarms));
+}
+
+function getAlarmSettingKey(shift, mode) {
+  const shiftName = { ko:'Ko', otsu:'Otsu', hei:'Hei' }[shift] || 'Ko';
+  const modeName = mode === 'early' ? 'Early' : 'Regular';
+  return `alarm${shiftName}${modeName}`;
+}
+
+function parseAlarmTimes(value) {
+  return String(value || '')
+    .split(/[,\s、]+/)
+    .map(t => t.trim())
+    .filter(Boolean)
+    .map(t => {
+      const m = t.match(/^(\d{1,2}):(\d{2})$/);
+      if (!m) return null;
+      const h = Number(m[1]);
+      const min = Number(m[2]);
+      if (h < 0 || h > 23 || min < 0 || min > 59) return null;
+      return `${String(h).padStart(2,'0')}:${String(min).padStart(2,'0')}`;
+    })
+    .filter(Boolean);
+}
+
+function getAlarmTimesFor(shift, mode) {
+  const settings = getSettings();
+  return parseAlarmTimes(settings[getAlarmSettingKey(shift, mode)]);
+}
+
+function getAlarmGroup() {
+  const group = getSettings().alarmGroup || localStorage.getItem('shiftCalGroup') || currentGroup || 'A';
+  return ['A','B','C','D'].includes(group) ? group : 'A';
+}
+
+function getAlarmDateTime(targetDate, shift, time) {
+  const [h, m] = time.split(':').map(Number);
+  const date = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate(), h, m, 0, 0);
+  if (shift === 'hei' && h >= 12) date.setDate(date.getDate() - 1);
+  return date;
+}
+
+function getAlarmDateTimeForMode(targetDate, shift, mode, time) {
+  const [h, m] = time.split(':').map(Number);
+  const date = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate(), h, m, 0, 0);
+  if (shift === 'hei' && mode === 'regular' && h >= 12) date.setDate(date.getDate() - 1);
+  return date;
+}
+
+function formatAlarmDateTime(date) {
+  const dows = ['日','月','火','水','木','金','土'];
+  return `${date.getMonth()+1}/${date.getDate()}(${dows[date.getDay()]}) ${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}`;
+}
+
+function openAlarmModal() {
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  alarmTargetDate = new Date(tomorrow.getFullYear(), tomorrow.getMonth(), tomorrow.getDate());
+  const detectedShift = getShift(currentGroup, alarmTargetDate);
+  alarmSelectedShift = detectedShift === 'off' ? 'ko' : detectedShift;
+  alarmSelectedMode = 'regular';
+  renderAlarmModal();
+  openModal('alarmModal');
+}
+
+function selectAlarmShift(shift) {
+  alarmSelectedShift = shift;
+  renderAlarmModal();
+}
+
+function selectAlarmMode(mode) {
+  alarmSelectedMode = mode;
+  renderAlarmModal();
+}
+
+function renderAlarmModal() {
+  const SHIFT = getShiftInfo();
+  const settings = getSettings();
+  const target = alarmTargetDate || new Date();
+  const dateText = formatAlarmDateTime(new Date(target.getFullYear(), target.getMonth(), target.getDate(), 0, 0)).replace(' 00:00','');
+  document.getElementById('alarmTargetDateText').textContent = `${settings['name' + currentGroup] || currentGroup + '組'} / 明日 ${dateText}`;
+  document.getElementById('alarmTargetShiftText').textContent = `${SHIFT[alarmSelectedShift].badge} ${SHIFT[alarmSelectedShift].label}`;
+
+  ['ko','otsu','hei'].forEach(shift => {
+    document.getElementById('alarmShift-' + shift).classList.toggle('active', alarmSelectedShift === shift);
+  });
+  ['regular','early'].forEach(mode => {
+    document.getElementById('alarmMode-' + mode).classList.toggle('active', alarmSelectedMode === mode);
+  });
+
+  const preview = document.getElementById('alarmTimesPreview');
+  preview.innerHTML = '';
+  const times = getAlarmTimesFor(alarmSelectedShift, alarmSelectedMode);
+  if (times.length === 0) {
+    preview.innerHTML = '<span style="font-size:13px;color:#EF4444;font-weight:700">設定画面で時刻を入力してください</span>';
+  } else {
+    times.forEach(time => {
+      const pill = document.createElement('span');
+      pill.className = 'alarm-time-pill';
+      pill.textContent = formatAlarmDateTime(getAlarmDateTimeForMode(target, alarmSelectedShift, alarmSelectedMode, time));
+      preview.appendChild(pill);
+    });
+  }
+  renderScheduledAlarmList();
+  renderAutoAlarmControls();
+}
+
+function renderAutoAlarmControls() {
+  const enabled = getSettings().alarmAutoEnabled !== false;
+  const btn = document.getElementById('alarmAutoToggleBtn');
+  if (btn) {
+    btn.textContent = enabled ? 'アラームON' : 'アラームOFF';
+    btn.style.background = enabled ? '#DCFCE7' : '#F3F4F6';
+    btn.style.color = enabled ? '#15803D' : '#6B7280';
+  }
+  const settingToggle = document.getElementById('alarmAutoEnabled');
+  if (settingToggle) settingToggle.checked = enabled;
+  const workToggle = document.getElementById('workAlarmAutoEnabled');
+  if (workToggle) workToggle.checked = enabled;
+}
+
+function setAutoAlarmEnabled(enabled) {
+  const data = loadData();
+  if (!data.settings) data.settings = getSettings();
+  data.settings.alarmAutoEnabled = !!enabled;
+  _ignoreNextUpdate = true;
+  saveData(data);
+  renderAutoAlarmControls();
+  showToast(enabled ? 'アラームONにしました' : 'アラームOFFにしました');
+}
+
+function toggleAutoAlarmEnabled() {
+  setAutoAlarmEnabled(getSettings().alarmAutoEnabled === false);
+}
+
+async function ensureAlarmPermission() {
+  if (!('Notification' in window)) return true;
+  if (Notification.permission === 'granted') return true;
+  if (Notification.permission === 'denied') {
+    showToast('通知がブロックされています');
+    return false;
+  }
+  const result = await Notification.requestPermission();
+  return result === 'granted';
+}
+
+async function scheduleSelectedAlarm() {
+  await ensureAlarmPermission();
+  const target = alarmTargetDate || new Date();
+  const SHIFT = getShiftInfo();
+  if (getShift(getAlarmGroup(), target) === 'off') {
+    showToast('休みの日なのでアラームはセットしません');
+    return;
+  }
+  const times = getAlarmTimesFor(alarmSelectedShift, alarmSelectedMode);
+  if (!times.length) {
+    showToast('アラーム時刻を設定してください');
+    return;
+  }
+
+  const modeLabel = alarmSelectedMode === 'early' ? '早出' : '定時';
+  const newAlarms = times.map(time => {
+    const dt = getAlarmDateTimeForMode(target, alarmSelectedShift, alarmSelectedMode, time);
+    return {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      at: dt.toISOString(),
+      targetDate: formatDateStr(target),
+      shift: alarmSelectedShift,
+      mode: alarmSelectedMode,
+      label: `${SHIFT[alarmSelectedShift].label} ${modeLabel}`
+    };
+  }).filter(alarm => new Date(alarm.at).getTime() > Date.now());
+
+  if (!newAlarms.length) {
+    showToast('セットできる未来の時刻がありません');
+    return;
+  }
+
+  const existing = loadScheduledAlarms();
+  const filtered = existing.filter(alarm =>
+    !(alarm.targetDate === formatDateStr(target) && alarm.shift === alarmSelectedShift && alarm.mode === alarmSelectedMode)
+  );
+  saveScheduledAlarms([...filtered, ...newAlarms].sort((a, b) => new Date(a.at) - new Date(b.at)));
+  armSavedAlarms();
+  renderAlarmModal();
+  showToast(`${newAlarms.length}件セットしました`);
+}
+
+function armSavedAlarms() {
+  Object.values(alarmTimers).forEach(timerId => clearTimeout(timerId));
+  alarmTimers = {};
+  const now = Date.now();
+  const alarmGroup = getAlarmGroup();
+  const alarms = loadScheduledAlarms().filter(alarm =>
+    new Date(alarm.at).getTime() > now &&
+    getShift(alarmGroup, new Date(alarm.targetDate + 'T00:00:00')) !== 'off'
+  );
+  saveScheduledAlarms(alarms);
+
+  alarms.forEach(alarm => {
+    const delay = new Date(alarm.at).getTime() - now;
+    if (delay > 2147483647) return;
+    alarmTimers[alarm.id] = setTimeout(() => fireAlarm(alarm), delay);
+  });
+
+  if (document.getElementById('scheduledAlarmList')) renderScheduledAlarmList();
+}
+
+function fireAlarm(alarm) {
+  const title = `アラーム ${alarm.label}`;
+  const body = formatAlarmDateTime(new Date(alarm.at));
+  if ('Notification' in window && Notification.permission === 'granted') {
+    new Notification(title, { body, tag: alarm.id, requireInteraction: true });
+  }
+  document.getElementById('ringingAlarmTitle').textContent = alarm.label || 'アラーム';
+  document.getElementById('ringingAlarmTime').textContent = body;
+  document.getElementById('ringingAlarm').classList.add('visible');
+  playAlarmSound(false);
+  ringingAlarmTimer = setInterval(() => playAlarmSound(false), 1800);
+  if (navigator.vibrate) navigator.vibrate([800, 200, 800, 200, 800]);
+  showToast(`${alarm.label} ${body}`, 8000);
+  saveScheduledAlarms(loadScheduledAlarms().filter(a => a.id !== alarm.id));
+  armSavedAlarms();
+}
+
+async function getAlarmAudioContext() {
+  const AudioCtx = window.AudioContext || window.webkitAudioContext;
+  if (!AudioCtx) return null;
+  const ctx = ringingAlarmAudio || new AudioCtx();
+  ringingAlarmAudio = ctx;
+  if (ctx.state === 'suspended') await ctx.resume();
+  return ctx;
+}
+
+async function playAlarmSound(isPreview = false) {
+  try {
+    const ctx = await getAlarmAudioContext();
+    if (!ctx) {
+      showToast('この端末では音声再生に対応していません');
+      return;
+    }
+    const notes = getAlarmSoundPattern(getSettings().alarmSound || 'standard', isPreview);
+    for (const note of notes) playAlarmTone(ctx, note.f, note.t, note.d);
+  } catch(e) {
+    showToast('音を鳴らせませんでした');
+  }
+}
+
+function getAlarmSoundPattern(sound, isPreview = false) {
+  const q = 0.24;
+  const wakeLoops = isPreview ? 2 : 4;
+  const repeat = (base, gap, loops) => {
+    const out = [];
+    const length = Math.max(...base.map(n => n.t + n.d));
+    for (let i = 0; i < loops; i++) {
+      for (const note of base) out.push({ ...note, t: note.t + i * (length + gap) });
+    }
+    return out;
+  };
+  const wakeBell = repeat([
+    { f: 1760, t: 0, d: 0.16 }, { f: 1320, t: 0.18, d: 0.16 },
+    { f: 1760, t: 0.36, d: 0.16 }, { f: 1320, t: 0.54, d: 0.16 },
+  ], 0.18, wakeLoops);
+  const siren = Array.from({ length: isPreview ? 10 : 18 }, (_, i) => ({
+    f: i % 2 ? 660 : 1320,
+    t: i * 0.16,
+    d: 0.13,
+  }));
+  const radar = repeat([
+    { f: 988, t: 0, d: 0.12 }, { f: 988, t: 0.18, d: 0.12 },
+    { f: 1319, t: 0.36, d: 0.12 }, { f: 1319, t: 0.54, d: 0.12 },
+    { f: 1760, t: 0.72, d: 0.18 },
+  ], 0.18, wakeLoops);
+  const classicAlarm = repeat([
+    { f: 1568, t: 0, d: 0.1 }, { f: 0, t: 0.11, d: 0.05 },
+    { f: 1568, t: 0.17, d: 0.1 }, { f: 0, t: 0.28, d: 0.05 },
+    { f: 1175, t: 0.34, d: 0.1 }, { f: 0, t: 0.45, d: 0.05 },
+    { f: 1175, t: 0.51, d: 0.1 },
+  ], 0.16, wakeLoops);
+  const patterns = {
+    standard: [{ f: 880, t: 0, d: 1.2 }],
+    bright:   [{ f: 1175, t: 0, d: 0.45 }, { f: 1397, t: 0.55, d: 0.45 }],
+    deep:     [{ f: 440, t: 0, d: 0.6 }, { f: 523, t: 0.7, d: 0.6 }],
+    pulse:    [{ f: 784, t: 0, d: 0.25 }, { f: 784, t: 0.35, d: 0.25 }, { f: 784, t: 0.7, d: 0.25 }],
+    urgent:   [{ f: 988, t: 0, d: 0.2 }, { f: 1319, t: 0.28, d: 0.2 }, { f: 988, t: 0.56, d: 0.2 }, { f: 1319, t: 0.84, d: 0.2 }],
+    chime:    [{ f: 659, t: 0, d: 0.35 }, { f: 784, t: 0.36, d: 0.35 }, { f: 1047, t: 0.72, d: 0.7 }],
+    ode:      [{ f: 659, t: 0*q, d: 0.2 }, { f: 659, t: 1*q, d: 0.2 }, { f: 698, t: 2*q, d: 0.2 }, { f: 784, t: 3*q, d: 0.2 }, { f: 784, t: 4*q, d: 0.2 }, { f: 698, t: 5*q, d: 0.2 }, { f: 659, t: 6*q, d: 0.2 }, { f: 587, t: 7*q, d: 0.45 }],
+    canon:    [{ f: 587, t: 0*q, d: 0.18 }, { f: 740, t: 1*q, d: 0.18 }, { f: 880, t: 2*q, d: 0.18 }, { f: 988, t: 3*q, d: 0.18 }, { f: 880, t: 4*q, d: 0.18 }, { f: 740, t: 5*q, d: 0.18 }, { f: 587, t: 6*q, d: 0.38 }],
+    westminster: [{ f: 659, t: 0, d: 0.32 }, { f: 523, t: 0.36, d: 0.32 }, { f: 587, t: 0.72, d: 0.32 }, { f: 392, t: 1.08, d: 0.7 }],
+    wakebell: wakeBell,
+    siren,
+    radar,
+    classicAlarm,
+  };
+  return patterns[sound] || patterns.standard;
+}
+
+function playAlarmTone(ctx, frequency, offset, duration) {
+  try {
+    if (!frequency) return;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    const filter = ctx.createBiquadFilter();
+    const start = ctx.currentTime + offset;
+    osc.type = 'square';
+    osc.frequency.value = frequency;
+    filter.type = 'highpass';
+    filter.frequency.value = 320;
+    gain.gain.setValueAtTime(0.001, start);
+    gain.gain.exponentialRampToValueAtTime(0.65, start + 0.025);
+    gain.gain.exponentialRampToValueAtTime(0.001, start + duration);
+    osc.connect(filter).connect(gain).connect(ctx.destination);
+    osc.start(start);
+    osc.stop(start + duration + 0.03);
+  } catch(e) {}
+}
+
+async function previewAlarmSound() {
+  await playAlarmSound(true);
+  if (navigator.vibrate) navigator.vibrate([180, 80, 180]);
+  showToast('音を再生しました');
+}
+
+function previewAndSelectAlarmSound(sound) {
+  document.getElementById('alarmSound').value = sound;
+  saveSettings();
+  previewAlarmSound();
+}
+
+function stopRingingAlarm() {
+  if (ringingAlarmTimer) clearInterval(ringingAlarmTimer);
+  ringingAlarmTimer = null;
+  if (navigator.vibrate) navigator.vibrate(0);
+  document.getElementById('ringingAlarm').classList.remove('visible');
+}
+
+function renderScheduledAlarmList() {
+  const list = document.getElementById('scheduledAlarmList');
+  if (!list) return;
+  const SHIFT = getShiftInfo();
+  const alarms = loadScheduledAlarms().filter(alarm => new Date(alarm.at).getTime() > Date.now());
+  list.innerHTML = '';
+  if (!alarms.length) {
+    list.innerHTML = '<div style="font-size:13px;color:#6B7280">まだセットされていません</div>';
+    return;
+  }
+  alarms.sort((a, b) => new Date(a.at) - new Date(b.at)).forEach(alarm => {
+    const item = document.createElement('div');
+    item.className = 'alarm-list-item';
+    const label = alarm.label || `${SHIFT[alarm.shift]?.label || ''} ${alarm.mode === 'early' ? '早出' : '定時'}`;
+    item.innerHTML = `
+      <div>
+        <div class="alarm-list-main">${escHtml(formatAlarmDateTime(new Date(alarm.at)))}</div>
+        <div class="alarm-list-sub">${escHtml(label)}</div>
+      </div>
+      <button class="alarm-remove" onclick="removeScheduledAlarm('${alarm.id}')">×</button>
+    `;
+    list.appendChild(item);
+  });
+}
+
+function removeScheduledAlarm(id) {
+  if (alarmTimers[id]) clearTimeout(alarmTimers[id]);
+  delete alarmTimers[id];
+  saveScheduledAlarms(loadScheduledAlarms().filter(alarm => alarm.id !== id));
+  renderScheduledAlarmList();
+  showToast('解除しました');
+}
+
+function cancelAllScheduledAlarms() {
+  Object.values(alarmTimers).forEach(timerId => clearTimeout(timerId));
+  alarmTimers = {};
+  saveScheduledAlarms([]);
+  renderScheduledAlarmList();
+  showToast('すべて解除しました');
+}
+
+function cancelAlarmsForDate(dateStr) {
+  const removed = loadScheduledAlarms().filter(alarm => alarm.targetDate === dateStr).length;
+  saveScheduledAlarms(loadScheduledAlarms().filter(alarm => alarm.targetDate !== dateStr));
+  armSavedAlarms();
+  renderScheduledAlarmList();
+  showToast(removed ? `${dateStr} のアラームを解除しました` : 'その日のアラームはありません');
+}
+
+function parseWorkScheduleMonth(label) {
+  const text = String(label || '');
+  const m = text.match(/(20\d{2})\D+(\d{1,2})/);
+  if (!m) {
+    const now = new Date();
+    return { year: now.getFullYear(), month: now.getMonth() + 1 };
+  }
+  return { year: Number(m[1]), month: Number(m[2]) };
+}
+
+function normalizeShift(value) {
+  const text = String(value || '').toLowerCase();
+  if (text.includes('甲') || text.includes('ko')) return 'ko';
+  if (text.includes('乙') || text.includes('otsu')) return 'otsu';
+  if (text.includes('丙') || text.includes('hei')) return 'hei';
+  return '';
+}
+
+function buildAlarmsForWorkEntries(entries, year, month) {
+  const SHIFT = getShiftInfo();
+  const built = [];
+  for (const entry of entries || []) {
+    const day = Number(entry.date);
+    if (!day) continue;
+    const target = new Date(year, month - 1, day);
+    if (target.getMonth() !== month - 1) continue;
+    const dateStr = formatDateStr(target);
+    const calendarShift = getShift(getAlarmGroup(), target);
+    if (calendarShift === 'off') continue;
+    let shift = normalizeShift(entry.shift);
+    if (!shift) shift = calendarShift;
+    if (!['ko','otsu','hei'].includes(shift)) continue;
+    const mode = entry.early ? 'early' : 'regular';
+    const times = getAlarmTimesFor(shift, mode);
+    const modeLabel = mode === 'early' ? '早出' : '定時';
+    for (const time of times) {
+      const dt = getAlarmDateTimeForMode(target, shift, mode, time);
+      if (dt.getTime() <= Date.now()) continue;
+      built.push({
+        id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        at: dt.toISOString(),
+        targetDate: dateStr,
+        shift,
+        mode,
+        label: `${SHIFT[shift].label} ${modeLabel}`
+      });
+    }
+  }
+  return built;
+}
+
+function saveBuiltWorkAlarms(alarms) {
+  if (!alarms.length) {
+    showToast('セットできる未来のアラームがありません');
+    return;
+  }
+  const targetDates = new Set(alarms.map(a => a.targetDate));
+  const existing = loadScheduledAlarms().filter(alarm => !targetDates.has(alarm.targetDate));
+  saveScheduledAlarms([...existing, ...alarms].sort((a, b) => new Date(a.at) - new Date(b.at)));
+  armSavedAlarms();
+  showToast(`${alarms.length}件のアラームを自動セットしました`, 3500);
+}
+
+async function autoScheduleFromLatestWorkPhoto() {
+  const schedules = (loadData().workSchedules || []).slice();
+  if (!schedules.length) {
+    showToast('勤務表写真を追加してください');
+    return;
+  }
+  await autoScheduleFromWorkPhoto(schedules[schedules.length - 1].id);
+}
+
+async function autoScheduleFromWorkPhoto(id) {
+  const data = loadData();
+  const ws = (data.workSchedules || []).find(w => w.id === id);
+  if (!ws) return;
+  const settings = getSettings();
+  if (!settings.apiKey) {
+    showToast('設定でClaude APIキーを入力してください');
+    openSettingsModal();
+    return;
+  }
+  const { year, month } = parseWorkScheduleMonth(ws.label);
+  const workerName = settings.alarmWorkerName || '白石';
+  const imageMatch = String(ws.image || '').match(/^data:(image\/[^;]+);base64,(.+)$/);
+  if (!imageMatch) {
+    showToast('写真データを読み取れません');
+    return;
+  }
+
+  showLoading(`${workerName}さんの勤務表を読み取り中...`);
+  try {
+    const res = await fetch('/.netlify/functions/work-alarm-ocr', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        apiKey: settings.apiKey,
+        year,
+        month,
+        workerName,
+        image: { mediaType: imageMatch[1], base64: imageMatch[2] }
+      })
+    });
+
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}));
+      throw new Error(errBody.error?.message || res.statusText);
+    }
+    const parsed = await res.json();
+    const alarms = buildAlarmsForWorkEntries(parsed.days || [], year, month);
+    hideLoading();
+    saveBuiltWorkAlarms(alarms);
+  } catch(e) {
+    hideLoading();
+    showToast('読み取り失敗: ' + e.message, 5000);
+  }
+}
+
+// =====================================================================
+// SETTINGS
+// =====================================================================
+
+function openSettingsModal() {
+  const s = getSettings();
+  document.getElementById('nameA').value    = s.nameA;
+  document.getElementById('nameB').value    = s.nameB;
+  document.getElementById('nameC').value    = s.nameC;
+  document.getElementById('nameD').value    = s.nameD;
+  document.getElementById('labelKo').value  = s.labelKo   || '甲（日勤）';
+  document.getElementById('labelOtsu').value= s.labelOtsu || '乙（準夜勤）';
+  document.getElementById('labelHei').value = s.labelHei  || '丙（夜勤）';
+  document.getElementById('labelOff').value = s.labelOff  || '休み';
+  document.getElementById('timeKo').value   = s.timeKo;
+  document.getElementById('timeOtsu').value = s.timeOtsu;
+  document.getElementById('timeHei').value  = s.timeHei;
+  document.getElementById('alarmKoRegular').value   = s.alarmKoRegular;
+  document.getElementById('alarmKoEarly').value     = s.alarmKoEarly;
+  document.getElementById('alarmOtsuRegular').value = s.alarmOtsuRegular;
+  document.getElementById('alarmOtsuEarly').value   = s.alarmOtsuEarly;
+  document.getElementById('alarmHeiRegular').value  = s.alarmHeiRegular;
+  document.getElementById('alarmHeiEarly').value    = s.alarmHeiEarly;
+  document.getElementById('alarmWorkerName').value   = s.alarmWorkerName || '白石';
+  document.getElementById('alarmGroup').value = s.alarmGroup || 'C';
+  document.getElementById('alarmAutoEnabled').checked = s.alarmAutoEnabled !== false;
+  document.getElementById('alarmSound').value = s.alarmSound || 'standard';
+  document.getElementById('apiKey').value   = s.apiKey;
+  document.getElementById('ttToken').value  = s.ttToken || '';
+  // TimeTreeカレンダー一覧を復元
+  if ((s.ttCalendars || []).length > 0) {
+    renderTTCalendarSelect(s.ttCalendars, s.ttCalendarId);
+  }
+  updateTTSyncBtn();
+  renderChildList(s.children || []);
+  openModal('settingsModal');
+}
+
+function saveSettings() {
+  const data     = loadData();
+  const children = getChildrenFromUI();
+  _ignoreNextUpdate = true;
+  data.settings  = {
+    nameA:    document.getElementById('nameA').value,
+    nameB:    document.getElementById('nameB').value,
+    nameC:    document.getElementById('nameC').value,
+    nameD:    document.getElementById('nameD').value,
+    labelKo:  document.getElementById('labelKo').value   || '甲（日勤）',
+    labelOtsu:document.getElementById('labelOtsu').value || '乙（準夜勤）',
+    labelHei: document.getElementById('labelHei').value  || '丙（夜勤）',
+    labelOff: document.getElementById('labelOff').value  || '休み',
+    timeKo:   document.getElementById('timeKo').value,
+    timeOtsu: document.getElementById('timeOtsu').value,
+    timeHei:  document.getElementById('timeHei').value,
+    alarmKoRegular:   document.getElementById('alarmKoRegular').value,
+    alarmKoEarly:     document.getElementById('alarmKoEarly').value,
+    alarmOtsuRegular: document.getElementById('alarmOtsuRegular').value,
+    alarmOtsuEarly:   document.getElementById('alarmOtsuEarly').value,
+    alarmHeiRegular:  document.getElementById('alarmHeiRegular').value,
+    alarmHeiEarly:    document.getElementById('alarmHeiEarly').value,
+    alarmWorkerName:   document.getElementById('alarmWorkerName').value || '白石',
+    alarmGroup:        document.getElementById('alarmGroup').value || 'C',
+    alarmAutoEnabled:  document.getElementById('alarmAutoEnabled').checked,
+    alarmSound:        document.getElementById('alarmSound').value || 'standard',
+    children:     children,
+    apiKey:       document.getElementById('apiKey').value,
+    ttToken:      document.getElementById('ttToken').value,
+    ttCalendarId: document.getElementById('ttCalendarId').value,
+    ttCalendars:  getSettings().ttCalendars || [],
+  };
+  saveData(data);
+  renderCalendar();
+}
+
+function renderChildList(children) {
+  const list = document.getElementById('childList');
+  list.innerHTML = '';
+  for (const child of children) {
+    const item = document.createElement('div');
+    item.className = 'child-item';
+    item.innerHTML = `
+      <span style="font-size:18px">👦</span>
+      <input class="child-name-input" value="${escHtml(child.name)}"
+        oninput="saveSettings()" placeholder="名前を入力">
+      <select class="child-grade-select" onchange="saveSettings()">
+        <option value="0" ${(child.grade||1)==0?'selected':''}>年長</option>
+        ${[1,2,3,4,5,6].map(g=>`<option value="${g}" ${(child.grade||1)==g?'selected':''}>${g}年生</option>`).join('')}
+      </select>
+      <button class="child-remove" onclick="removeChild('${child.id}')">×</button>`;
+    list.appendChild(item);
+  }
+}
+
+function getChildrenFromUI() {
+  const items    = document.getElementById('childList').querySelectorAll('.child-item');
+  const data     = loadData();
+  const existing = data.settings?.children || [];
+  return Array.from(items).map((item, i) => ({
+    id:    existing[i]?.id || 'child_' + Date.now() + '_' + i,
+    name:  item.querySelector('.child-name-input').value || `子供${i+1}`,
+    grade: parseInt(item.querySelector('.child-grade-select')?.value || '1')
+  }));
+}
+
+function addChild() {
+  const data     = loadData();
+  const children = data.settings?.children || [];
+  children.push({ id: 'child_' + Date.now(), name: '子供' + (children.length + 1) });
+  if (!data.settings) data.settings = getSettings();
+  data.settings.children = children;
+  saveData(data);
+  renderChildList(children);
+}
+
+function removeChild(id) {
+  const data     = loadData();
+  const children = (data.settings?.children || []).filter(c => c.id !== id);
+  if (!data.settings) data.settings = getSettings();
+  data.settings.children = children;
+  saveData(data);
+  renderChildList(children);
+  renderCalendar();
+}
+
+// =====================================================================
+// PHOTO OCR
+// =====================================================================
+
+function openPhotoModal() {
+  const settings = getSettings();
+  const children = settings.children || [];
+  const sel      = document.getElementById('ocrChildSelect');
+  sel.innerHTML  = '';
+
+  // 小学生のみOCR対象（年長=grade 0 は除外）
+  const schoolChildren = children.filter(c => (c.grade || 1) >= 1);
+
+  if (schoolChildren.length === 0) {
+    sel.innerHTML = '<div style="color:#6B7280;font-size:13px">小学生の子供が登録されていません</div>';
+    currentOcrChildId = null;
+    document.getElementById('ocrGradeRow').style.display = 'none';
+  } else {
+    if (!schoolChildren.find(c => c.id === currentOcrChildId)) {
+      currentOcrChildId = schoolChildren[0].id;
+    }
+    for (const child of schoolChildren) {
+      const btn = document.createElement('button');
+      btn.className = 'group-btn' + (currentOcrChildId === child.id ? ' active' : '');
+      btn.textContent = child.name;
+      btn.onclick = () => {
+        currentOcrChildId = child.id;
+        sel.querySelectorAll('.group-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        updateOcrGradeLabel(children);
+      };
+      sel.appendChild(btn);
+    }
+    updateOcrGradeLabel(children);
+  }
+
+  const now = new Date();
+  document.getElementById('ocrMonth').value =
+    `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+
+  document.getElementById('ocrPreview').classList.remove('visible');
+  document.getElementById('ocrManualEdit').style.display = 'none';
+  document.getElementById('ocrActionArea').style.display = 'none';
+  document.getElementById('photoCameraInput').value  = '';
+  document.getElementById('photoGalleryInput').value = '';
+  document.getElementById('photoPdfInput').value     = '';
+  currentOcrData = null;
+
+  openModal('photoModal');
+}
+
+function updateOcrGradeLabel(children) {
+  const child = (children || []).find(c => c.id === currentOcrChildId);
+  const row   = document.getElementById('ocrGradeRow');
+  const lbl   = document.getElementById('ocrGradeLabel');
+  if (child) {
+    lbl.textContent = `${child.grade || 1}年生`;
+    row.style.display = 'block';
+  } else {
+    row.style.display = 'none';
+  }
+}
+
+function handlePhotoSelect(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const isPdf = file.type === 'application/pdf';
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const base64 = e.target.result.split(',')[1];
+    if (isPdf) {
+      // PDF はプレビュー不可 → アイコン表示
+      document.getElementById('ocrPreviewImg').src = '';
+      document.getElementById('ocrPreview').classList.remove('visible');
+      document.getElementById('ocrManualEdit').style.display = 'none';
+    } else {
+      document.getElementById('ocrPreviewImg').src = e.target.result;
+      document.getElementById('ocrPreview').classList.add('visible');
+    }
+    runOCR(base64, file.type);
+  };
+  reader.readAsDataURL(file);
+}
+
+async function runOCR(base64, mediaType) {
+  const settings  = getSettings();
+  const apiKey    = settings.apiKey;
+  const children  = settings.children || [];
+  const child     = children.find(c => c.id === currentOcrChildId) || children[0];
+  const grade     = child ? (child.grade || 1) : 1;
+
+  if (!apiKey) {
+    showToast('設定でAPIキーを入力してください');
+    showManualOcrEdit();
+    return;
+  }
+
+  const monthVal = document.getElementById('ocrMonth').value;
+  const [year, month] = monthVal.split('-').map(Number);
+  const isPdf = mediaType === 'application/pdf';
+
+  showLoading('AIが下校時間を読み取り中...');
+
+  // コンテンツブロック：PDF or 画像
+  const fileBlock = isPdf
+    ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } }
+    : { type: 'image',    source: { type: 'base64', media_type: mediaType,          data: base64 } };
+
+  const prompt =
+`この書類は${year}年${month}月の小学校の下校時刻表です。
+【対象学年】${grade}年生の「下校完了」時刻を日付ごとに抽出してください。
+
+ルール：
+- 「1-6年」「1-${grade}年」「${grade}-6年」「${grade}年」「${grade}・${grade+1}年」など、${grade}年生が含まれるグループの時刻を使用する
+- 同じ日に複数グループがある場合は${grade}年生が属するグループの時刻を採用
+- 「下校完了 HH:MM」「下校完了HH:MM」「下校完了 HH:MM」という記述から時刻を読む
+- 「下校完了」の直後の時刻のみ（授業数の記述など別の数字と混同しない）
+- 土日祝日・春休み・夏休みなど登校しない日はnull
+- 時刻は"HH:MM"形式（24時間）
+
+以下のJSON形式のみを返してください（他の文章は不要）：
+{"dates":[{"date":1,"time":"14:15"},{"date":2,"time":null},...]}`;
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-opus-4-6',
+        max_tokens: 2000,
+        messages: [{
+          role: 'user',
+          content: [ fileBlock, { type: 'text', text: prompt } ]
+        }]
+      })
+    });
+
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}));
+      throw new Error(`HTTP ${res.status}: ${errBody.error?.message || res.statusText}`);
+    }
+    const result = await res.json();
+    const text   = result.content?.[0]?.text || '';
+    // JSON部分を抽出（コードブロックにも対応）
+    const match  = text.match(/\{[\s\S]*"dates"[\s\S]*\}/);
+    if (!match) throw new Error('AI応答のJSON解析失敗: ' + text.slice(0,100));
+
+    const parsed = JSON.parse(match[0]);
+    currentOcrData = parsed.dates || [];
+    hideLoading();
+    showOcrTable(currentOcrData, year, month);
+    document.getElementById('ocrActionArea').style.display = 'block';
+    showToast(`${currentOcrData.filter(d => d.time).length}件の下校時間を検出`);
+
+  } catch(err) {
+    hideLoading();
+    console.error('OCR error:', err);
+    showToast('読み取り失敗: ' + err.message);
+    showManualOcrEdit();
+  }
+}
+
+function showManualOcrEdit() {
+  const monthVal = document.getElementById('ocrMonth').value;
+  const [year, month] = monthVal.split('-').map(Number);
+  currentOcrData = [];
+  showOcrTable([], year, month);
+  document.getElementById('ocrActionArea').style.display = 'block';
+}
+
+function showOcrTable(dates, year, month) {
+  const container = document.getElementById('ocrManualEdit');
+  const table     = document.getElementById('ocrTable');
+  container.style.display = 'block';
+
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const dows = ['日','月','火','水','木','金','土'];
+  let html = '<thead><tr><th>日</th><th>曜</th><th>下校時刻</th></tr></thead><tbody>';
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    const date = new Date(year, month - 1, d);
+    const dow  = dows[date.getDay()];
+    const existing = (dates || []).find(x => x.date === d);
+    const time = existing?.time || '';
+    const color = date.getDay() === 0 ? '#EF4444' : date.getDay() === 6 ? '#3B82F6' : '#374151';
+    html += `<tr>
+      <td style="color:${color};font-weight:700">${d}</td>
+      <td style="color:${color}">${dow}</td>
+      <td><input class="time-input" type="time" data-day="${d}" value="${time}"
+          onchange="updateOcrTime(${d},this.value)"></td>
+    </tr>`;
+  }
+  html += '</tbody>';
+  table.innerHTML = html;
+}
+
+function updateOcrTime(day, time) {
+  if (!currentOcrData) currentOcrData = [];
+  const existing = currentOcrData.find(d => d.date === day);
+  if (existing) existing.time = time || null;
+  else currentOcrData.push({ date: day, time: time || null });
+}
+
+function applyOcrResult() {
+  if (!currentOcrChildId) { showToast('子供を選択してください'); return; }
+
+  const monthVal = document.getElementById('ocrMonth').value;
+  const [year, month] = monthVal.split('-').map(Number);
+  let count = 0;
+
+  document.querySelectorAll('#ocrTable input[data-day]').forEach(input => {
+    const day  = parseInt(input.dataset.day);
+    const time = input.value;
+    if (time) {
+      const date    = new Date(year, month - 1, day);
+      const dateStr = formatDateStr(date);
+      const dayData = getDayData(dateStr);
+      if (!dayData.schoolTimes) dayData.schoolTimes = {};
+      dayData.schoolTimes[currentOcrChildId] = time;
+      saveDayRecord(dateStr, dayData);
+      count++;
+    }
+  });
+
+  renderCalendar();
+  closeModal('photoModal');
+  showToast(`${count}件の下校時間を反映しました`);
+}
+
+// =====================================================================
+// iCAL EXPORT
+// =====================================================================
+
+function openExportModal() {
+  const settings = getSettings();
+  document.getElementById('exportGroup').value = currentGroup;
+  const sel = document.getElementById('exportGroup');
+  sel.options[0].text = settings.nameA;
+  sel.options[1].text = settings.nameB;
+  sel.options[2].text = settings.nameC;
+  sel.options[3].text = settings.nameD;
+  openModal('exportModal');
+}
+
+function exportICal() {
+  const fromVal    = document.getElementById('exportFrom').value;
+  const toVal      = document.getElementById('exportTo').value;
+  const group      = document.getElementById('exportGroup').value;
+  const includeOff = document.getElementById('exportIncludeOff').checked;
+  const settings   = getSettings();
+  const SHIFT      = getShiftInfo();
+
+  const groupName = settings['name' + group] || (group + '組');
+  const [fromY, fromM] = fromVal.split('-').map(Number);
+  const [toY,   toM  ] = toVal.split('-').map(Number);
+
+  let ical = [
+    'BEGIN:VCALENDAR','VERSION:2.0',
+    'PRODID:-//ShiftCalendar//JP','CALSCALE:GREGORIAN',
+    `X-WR-CALNAME:${groupName}シフト`,'X-WR-TIMEZONE:Asia/Tokyo',''
+  ].join('\r\n');
+
+  const cur = new Date(fromY, fromM - 1, 1);
+  const end = new Date(toY,   toM,       0);
+
+  while (cur <= end) {
+    const shift   = getShift(group, cur);
+    const info    = SHIFT[shift];
+    const dateStr = formatDateStr(cur);
+    const icalDate = dateStr.replace(/-/g, '');
+    const uid     = `shift-${group}-${icalDate}@shiftcal`;
+
+    if (!includeOff && shift === 'off') { cur.setDate(cur.getDate()+1); continue; }
+
+    // Determine times
+    let dtStart, dtEnd;
+    if (shift === 'ko') {
+      const [sh, sm] = (settings.timeKo.split('-')[0] || '8:00').split(':');
+      const [eh, em] = (settings.timeKo.split('-')[1] || '16:30').split(':');
+      dtStart = `${icalDate}T${String(sh).padStart(2,'0')}${String(sm||'00').padStart(2,'0')}00`;
+      dtEnd   = `${icalDate}T${String(eh).padStart(2,'0')}${String(em||'00').padStart(2,'0')}00`;
+    } else if (shift === 'otsu') {
+      const [sh, sm] = (settings.timeOtsu.split('-')[0] || '16:00').split(':');
+      const next = new Date(cur); next.setDate(next.getDate()+1);
+      const nDate = formatDateStr(next).replace(/-/g,'');
+      const [eh, em] = (settings.timeOtsu.split('-')[1] || '0:30').split(':');
+      dtStart = `${icalDate}T${String(sh).padStart(2,'0')}${String(sm||'00').padStart(2,'0')}00`;
+      dtEnd   = `${nDate}T${String(eh).padStart(2,'0')}${String(em||'00').padStart(2,'0')}00`;
+    } else if (shift === 'hei') {
+      const [sh, sm] = (settings.timeHei.split('-')[0] || '0:00').split(':');
+      const [eh, em] = (settings.timeHei.split('-')[1] || '8:30').split(':');
+      dtStart = `${icalDate}T${String(sh).padStart(2,'0')}${String(sm||'00').padStart(2,'0')}00`;
+      dtEnd   = `${icalDate}T${String(eh).padStart(2,'0')}${String(em||'00').padStart(2,'0')}00`;
+    } else {
+      // Off = all-day
+      ical += `BEGIN:VEVENT\r\nUID:${uid}\r\nDTSTAMP:${icalDate}T000000Z\r\n`;
+      ical += `DTSTART;VALUE=DATE:${icalDate}\r\nDTEND;VALUE=DATE:${icalDate}\r\n`;
+      ical += `SUMMARY:${info.icon} ${info.label}\r\nEND:VEVENT\r\n`;
+      cur.setDate(cur.getDate()+1); continue;
+    }
+
+    const dayData = getDayData(dateStr);
+    const children = settings.children || [];
+    let desc = '';
+    for (const child of children) {
+      const t = (dayData.schoolTimes||{})[child.id];
+      if (t) desc += `${child.name}下校: ${t}\\n`;
+    }
+    if (dayData.memo) desc += dayData.memo;
+    for (const evt of getDayEvents(dateStr)) {
+      desc += `\\n[予定]${evt.title}${evt.startTime?' '+evt.startTime:''}`;
+    }
+
+    ical += `BEGIN:VEVENT\r\nUID:${uid}\r\nDTSTAMP:${icalDate}T000000Z\r\n`;
+    ical += `DTSTART;TZID=Asia/Tokyo:${dtStart}\r\nDTEND;TZID=Asia/Tokyo:${dtEnd}\r\n`;
+    ical += `SUMMARY:${info.icon} ${info.label}\r\n`;
+    if (desc) ical += `DESCRIPTION:${desc}\r\n`;
+    ical += `END:VEVENT\r\n`;
+
+    cur.setDate(cur.getDate()+1);
+  }
+
+  ical += 'END:VCALENDAR';
+
+  const blob = new Blob([ical], { type: 'text/calendar;charset=utf-8' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = `shift_${group}_${fromVal}_${toVal}.ics`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('ダウンロードしました');
+}
+
+// =====================================================================
+// UI HELPERS
+// =====================================================================
+
+function selectGroup(g) {
+  currentGroup = g;
+  localStorage.setItem('shiftCalGroup', g);
+  document.querySelectorAll('.group-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('btn-' + g).classList.add('active');
+  renderCalendar();
+}
+
+// =====================================================================
+// 勤務表
+// =====================================================================
+
+let _workSelectMode = false;
+let _workSelectedIds = new Set();
+
+function openWorkModal() {
+  _workSelectMode = false;
+  _workSelectedIds.clear();
+  document.getElementById('workSelectBtn').textContent = '選択';
+  document.getElementById('workDeleteBar').style.display = 'none';
+  document.getElementById('workLabelRow').style.display  = 'none';
+  document.getElementById('workStatus').textContent = '';
+  renderAutoAlarmControls();
+  renderWorkGallery();
+  openModal('workModal');
+}
+
+function renderWorkGallery() {
+  const data      = loadData();
+  const schedules = (data.workSchedules || []).slice().reverse(); // 新しい順
+  const gallery   = document.getElementById('workGallery');
+
+  if (schedules.length === 0) {
+    gallery.innerHTML = `
+      <div style="text-align:center;padding:50px 0;color:#9CA3AF">
+        <div style="font-size:40px;margin-bottom:8px">📋</div>
+        <div style="font-size:14px">「＋ 追加」から写真を追加してください</div>
+      </div>`;
+    return;
+  }
+
+  gallery.innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:2px">
+      ${schedules.map(ws => `
+        <div style="position:relative;cursor:pointer;border-radius:10px;overflow:hidden;
+          border:${_workSelectMode && _workSelectedIds.has(ws.id) ? '3px solid #EF4444' : '2px solid #E5E7EB'};
+          background:#F9FAFB"
+          onclick="${_workSelectMode ? `toggleWorkSelect('${ws.id}')` : `openWorkViewer('${ws.id}')`}">
+          <img src="${ws.image}" alt="${ws.label}"
+            style="width:100%;aspect-ratio:4/3;object-fit:cover;display:block">
+          <div style="padding:6px 8px;font-size:12px;font-weight:700;color:#374151;
+            background:white;border-top:1px solid #F3F4F6">
+            ${ws.label}
+          </div>
+          ${!_workSelectMode ? `
+            <button onclick="event.stopPropagation();autoScheduleFromWorkPhoto('${ws.id}')"
+              style="width:100%;padding:8px;border:none;border-top:1px solid #E5E7EB;
+                background:#EEF2FF;color:#4338CA;font-size:12px;font-weight:800;cursor:pointer">
+              🔔 アラーム自動セット
+            </button>` : ''}
+          ${_workSelectMode ? `
+            <div style="position:absolute;top:6px;right:6px;width:22px;height:22px;
+              border-radius:50%;background:${_workSelectedIds.has(ws.id) ? '#EF4444' : 'rgba(255,255,255,0.9)'};
+              border:2px solid ${_workSelectedIds.has(ws.id) ? '#EF4444' : '#D1D5DB'};
+              display:flex;align-items:center;justify-content:center;font-size:13px">
+              ${_workSelectedIds.has(ws.id) ? '✓' : ''}
+            </div>` : ''}
+        </div>
+      `).join('')}
+    </div>`;
+}
+
+function toggleWorkSelectMode() {
+  _workSelectMode = !_workSelectMode;
+  _workSelectedIds.clear();
+  document.getElementById('workSelectBtn').textContent = _workSelectMode ? 'キャンセル' : '選択';
+  document.getElementById('workDeleteBar').style.display = _workSelectMode ? 'block' : 'none';
+  renderWorkGallery();
+}
+
+function toggleWorkSelect(id) {
+  if (_workSelectedIds.has(id)) _workSelectedIds.delete(id);
+  else _workSelectedIds.add(id);
+  renderWorkGallery();
+}
+
+function deleteSelectedWorks() {
+  if (_workSelectedIds.size === 0) { showToast('写真を選択してください'); return; }
+  if (!confirm(`選択した${_workSelectedIds.size}件の写真を削除しますか？`)) return;
+
+  const data = loadData();
+  data.workSchedules = (data.workSchedules || []).filter(ws => !_workSelectedIds.has(ws.id));
+  _ignoreNextUpdate = true;
+  saveData(data);
+
+  _workSelectedIds.clear();
+  _workSelectMode = false;
+  document.getElementById('workSelectBtn').textContent = '選択';
+  document.getElementById('workDeleteBar').style.display = 'none';
+  renderWorkGallery();
+  showToast('削除しました');
+}
+
+function openWorkViewer(id) {
+  const data = loadData();
+  const ws   = (data.workSchedules || []).find(w => w.id === id);
+  if (!ws) return;
+  document.getElementById('workViewerTitle').textContent = ws.label;
+  document.getElementById('workViewerImg').src = ws.image;
+  const viewer = document.getElementById('workViewer');
+  viewer.style.display = 'flex';
+}
+
+function closeWorkViewer() {
+  document.getElementById('workViewer').style.display = 'none';
+}
+
+async function handleWorkPhoto(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  // 月ラベルを自動生成して確認
+  const now = new Date();
+  const defaultLabel = `${now.getFullYear()}年${now.getMonth()+1}月`;
+  const label = prompt('この勤務表の月を入力してください', defaultLabel);
+  if (!label) { event.target.value = ''; return; }
+
+  const status = document.getElementById('workStatus');
+  status.textContent = '📷 圧縮・保存中...';
+
+  try {
+    const compressed = await compressImageFile(file, 1400, 0.82);
+
+    const data = loadData();
+    if (!data.workSchedules) data.workSchedules = [];
+    const id = 'ws_' + Date.now();
+    data.workSchedules.push({
+      id:      id,
+      label:   label,
+      image:   compressed,
+      addedAt: `${now.getFullYear()}/${now.getMonth()+1}/${now.getDate()}`
+    });
+    _ignoreNextUpdate = true;
+    saveData(data);
+
+    status.textContent = '✅ 追加しました';
+    setTimeout(() => { status.textContent = ''; }, 2000);
+    renderWorkGallery();
+    if (getSettings().alarmAutoEnabled !== false) {
+      await autoScheduleFromWorkPhoto(id);
+    }
+
+  } catch(e) {
+    status.textContent = '❌ 失敗: ' + e.message;
+  }
+  event.target.value = '';
+}
+
+function compressImageFile(file, maxWidth, quality) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img  = new Image();
+    img.onload = () => {
+      const ratio  = Math.min(1, maxWidth / img.width);
+      const canvas = document.createElement('canvas');
+      canvas.width  = Math.round(img.width  * ratio);
+      canvas.height = Math.round(img.height * ratio);
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      URL.revokeObjectURL(url);
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = () => reject(new Error('画像読み込み失敗'));
+    img.src = url;
+  });
+}
+
+// =====================================================================
+// TIMETREE 連携
+// =====================================================================
+
+// TimeTree APIはCORS制限のためNetlify Function経由でアクセス
+const TT_API_PROXY = '/.netlify/functions/timetree';
+
+function updateTTSyncBtn() {
+  const token = document.getElementById('ttToken')?.value || getSettings().ttToken || '';
+  const calId = getSettings().ttCalendarId || '';
+  const btn   = document.getElementById('ttSyncBtn');
+  if (btn) btn.style.display = (token && calId) ? 'flex' : 'none';
+}
+
+function renderTTCalendarSelect(calendars, selectedId) {
+  const sel = document.getElementById('ttCalendarId');
+  sel.innerHTML = '<option value="">カレンダーを選択...</option>' +
+    calendars.map(c => `<option value="${c.id}" ${c.id === selectedId ? 'selected' : ''}>${c.name}</option>`).join('');
+  document.getElementById('ttCalSection').style.display = 'block';
+}
+
+async function loadTTCalendars() {
+  const token = document.getElementById('ttToken').value || getSettings().ttToken;
+  if (!token) { showToast('Personal Access Tokenを入力してください'); return; }
+
+  document.getElementById('ttStatus').textContent = '取得中...';
+  try {
+    const res = await fetch(`${TT_API_PROXY}?path=/api/v1/calendars`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
+    const calendars = (json.data || []).map(c => ({ id: c.id, name: c.attributes.name }));
+
+    // Save to settings
+    const data = loadData();
+    if (!data.settings) data.settings = getSettings();
+    data.settings.ttToken     = token;
+    data.settings.ttCalendars = calendars;
+    _ignoreNextUpdate = true;
+    saveData(data);
+
+    renderTTCalendarSelect(calendars, data.settings.ttCalendarId || '');
+    document.getElementById('ttStatus').textContent = `✅ ${calendars.length}件のカレンダーを取得しました`;
+  } catch(e) {
+    document.getElementById('ttStatus').textContent = '❌ 取得失敗: ' + e.message;
+    showToast('TimeTree接続失敗: ' + e.message);
+  }
+}
+
+async function syncFromTimeTree() {
+  const settings   = getSettings();
+  const token      = settings.ttToken;
+  const calendarId = settings.ttCalendarId;
+  if (!token || !calendarId) {
+    showToast('設定でTimeTreeを設定してください');
+    openModal('settingsModal');
+    return;
+  }
+
+  showLoading('TimeTreeから予定を取り込み中...');
+
+  try {
+    // Netlify Function経由でTimeTree APIにアクセス（CORS回避）
+    let events = [];
+    for (const days of [365, 90, 30, 7]) {
+      try {
+        const res = await fetch(
+          `${TT_API_PROXY}?path=/api/v1/calendars/${calendarId}/upcoming_events&days=${days}`,
+          { headers: { 'Authorization': `Bearer ${token}` } }
+        );
+        if (res.ok) {
+          const json = await res.json();
+          events = json.data || [];
+          break;
+        }
+      } catch(e) {}
+    }
+
+    // アプリのデータに取り込む
+    const data = loadData();
+    if (!data.events) data.events = [];
+
+    let added = 0, updated = 0;
+    for (const evt of events) {
+      const attr = evt.attributes;
+      if (!attr.title) continue;
+
+      // 日時変換（TimeTreeはUTCで返す）
+      const startAt = new Date(attr.start_at);
+      const endAt   = attr.end_at ? new Date(attr.end_at) : null;
+
+      const pad = n => String(n).padStart(2,'0');
+      const toJST = d => new Date(d.getTime() + (d.getTimezoneOffset() + 540) * 60000);
+
+      const startJST = toJST(startAt);
+      const startDateStr = `${startJST.getFullYear()}-${pad(startJST.getMonth()+1)}-${pad(startJST.getDate())}`;
+
+      let endDateStr = null, startTime = '', endTime = '';
+      if (!attr.all_day) {
+        startTime = `${pad(startJST.getHours())}:${pad(startJST.getMinutes())}`;
+        if (endAt) {
+          const endJST = toJST(endAt);
+          const eds = `${endJST.getFullYear()}-${pad(endJST.getMonth()+1)}-${pad(endJST.getDate())}`;
+          if (eds !== startDateStr) endDateStr = eds;
+          endTime = `${pad(endJST.getHours())}:${pad(endJST.getMinutes())}`;
+        }
+      }
+
+      const existIdx = data.events.findIndex(e => e.ttId === evt.id);
+      const appEvt = {
+        id:        existIdx >= 0 ? data.events[existIdx].id : 'tt_' + evt.id,
+        ttId:      evt.id,
+        title:     attr.title,
+        startDate: startDateStr,
+        endDate:   endDateStr,
+        startTime: startTime,
+        endTime:   endTime,
+        memo:      attr.description || '',
+      };
+
+      if (existIdx >= 0) { data.events[existIdx] = appEvt; updated++; }
+      else               { data.events.push(appEvt);        added++;   }
+    }
+
+    saveData(data);
+    hideLoading();
+    renderCalendar();
+    showToast(`TimeTree同期完了: 新規${added}件 / 更新${updated}件`);
+
+  } catch(e) {
+    hideLoading();
+    console.error(e);
+    showToast('同期失敗: ' + (e.message.includes('fetch') ? 'ネットワークエラー（CORS制限の可能性）' : e.message));
+  }
+}
+
+let _slideDirection = 0; // +1=next, -1=prev
+function changeMonth(delta) {
+  const grid = document.getElementById('daysGrid');
+  _slideDirection = delta;
+
+  // Slide out current
+  grid.classList.remove('slide-in-left','slide-in-right','slide-out-left','slide-out-right');
+  grid.classList.add(delta > 0 ? 'slide-out-left' : 'slide-out-right');
+
+  setTimeout(() => {
+    currentMonth += delta;
+    if (currentMonth > 11) { currentMonth = 0; currentYear++; }
+    if (currentMonth <  0) { currentMonth = 11; currentYear--; }
+    selectedDate = null;
+    renderCalendar();
+    // Slide in new
+    grid.classList.remove('slide-out-left','slide-out-right');
+    grid.classList.add(delta > 0 ? 'slide-in-left' : 'slide-in-right');
+    setTimeout(() => grid.classList.remove('slide-in-left','slide-in-right'), 300);
+  }, 180);
+}
+
+function formatDateStr(date) {
+  return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+}
+
+function openModal(id) {
+  document.getElementById(id).classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeModal(id) {
+  document.getElementById(id).classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+function closeModalOnBg(event, id) {
+  if (event.target === document.getElementById(id)) closeModal(id);
+}
+
+function showLoading(text) {
+  document.getElementById('loadingText').textContent = text || '処理中...';
+  document.getElementById('loadingOverlay').classList.add('visible');
+}
+
+function hideLoading() {
+  document.getElementById('loadingOverlay').classList.remove('visible');
+}
+
+function showToast(msg, ms = 2500) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('visible');
+  setTimeout(() => t.classList.remove('visible'), ms);
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// =====================================================================
+// INIT
+// =====================================================================
+
+// 認証チェック（既にログイン済みならログイン画面を非表示）
+checkAuth();
+
+// 組の選択はデバイスごとにlocalStorageで保持
+const savedGroup = localStorage.getItem('shiftCalGroup');
+if (savedGroup && ['A','B','C','D'].includes(savedGroup)) {
+  currentGroup = savedGroup;
+  document.querySelectorAll('.group-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('btn-' + savedGroup).classList.add('active');
+}
+
+// Firebaseの接続待ち（最大5秒でタイムアウト）
+showLoading('データを読み込み中...');
+setTimeout(() => {
+  if (!_firebaseReady) {
+    hideLoading();
+    renderCalendar();
+    armSavedAlarms();
+    showToast('オフラインモードで起動しました');
+  }
+}, 5000);
+
+// =====================================================================
+// SWIPE (左右スワイプで月移動)
+// =====================================================================
+(function() {
+  const el = document.querySelector('.calendar-grid');
+  let startX = 0, startY = 0;
+  el.addEventListener('touchstart', e => {
+    startX = e.touches[0].clientX;
+    startY = e.touches[0].clientY;
+  }, { passive: true });
+  el.addEventListener('touchend', e => {
+    const dx = e.changedTouches[0].clientX - startX;
+    const dy = e.changedTouches[0].clientY - startY;
+    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+      changeMonth(dx < 0 ? 1 : -1);
+    }
+  }, { passive: true });
+})();
+
+// =====================================================================
+// モーダル: 下スワイプで閉じる
+// =====================================================================
+(function() {
+  function attachModalSwipe(box, closeFn) {
+    let startY = 0, atTop = false, dragging = false;
+
+    box.addEventListener('touchstart', e => {
+      if (e.touches.length !== 1) return;
+      startY   = e.touches[0].clientY;
+      atTop    = (box.scrollTop <= 0);
+      dragging = false;
+    }, { passive: true });
+
+    box.addEventListener('touchmove', e => {
+      if (!atTop || e.touches.length !== 1) return;
+      const dy = e.touches[0].clientY - startY;
+      if (dy > 8) {
+        e.preventDefault();
+        dragging = true;
+        box.classList.add('swiping');
+        box.style.transform = `translateY(${dy}px)`;
+        box.style.opacity   = String(Math.max(0, 1 - dy / 280));
+      }
+    }, { passive: false });
+
+    box.addEventListener('touchend', e => {
+      if (!dragging) return;
+      dragging = false;
+      box.classList.remove('swiping');
+      const dy = e.changedTouches[0].clientY - startY;
+      if (dy > 100) {
+        // 閉じるアニメーション
+        box.style.transition = 'transform 0.24s ease, opacity 0.24s ease';
+        box.style.transform  = 'translateY(100%)';
+        box.style.opacity    = '0';
+        setTimeout(() => {
+          box.style.transition = '';
+          box.style.transform  = '';
+          box.style.opacity    = '';
+          closeFn();
+        }, 240);
+      } else {
+        // 戻すアニメーション
+        box.style.transition = 'transform 0.2s ease, opacity 0.2s ease';
+        box.style.transform  = '';
+        box.style.opacity    = '';
+        setTimeout(() => { box.style.transition = ''; }, 200);
+      }
+    }, { passive: true });
+  }
+
+  document.querySelectorAll('.modal-overlay').forEach(overlay => {
+    const box = overlay.querySelector('.modal-box');
+    if (!box) return;
+    attachModalSwipe(box, () => closeModal(overlay.id));
+  });
+})();
+
+// =====================================================================
+// 勤務表ビューア: ピンチズーム + ダブルタップ + 下スワイプで閉じる
+// =====================================================================
+(function() {
+  const viewer  = document.getElementById('workViewer');
+  const img     = document.getElementById('workViewerImg');
+  const imgWrap = img.parentElement;
+
+  let scale = 1, lastScale = 1;
+  let tx = 0, ty = 0, lastTx = 0, lastTy = 0;
+
+  function applyTransform(animated) {
+    if (animated) { img.style.transition = 'transform 0.25s ease'; }
+    img.style.transform = `translate(${tx}px,${ty}px) scale(${scale})`;
+    if (animated) { setTimeout(() => { img.style.transition = ''; }, 260); }
+  }
+
+  function resetTransform(animated) {
+    scale = 1; lastScale = 1; tx = 0; ty = 0; lastTx = 0; lastTy = 0;
+    applyTransform(animated);
+  }
+
+  // openWorkViewer を上書きしてズームリセット
+  const _origOpen = window.openWorkViewer;
+  window.openWorkViewer = function(id) {
+    _origOpen(id);
+    img.style.transition = '';
+    img.style.transform  = '';
+    scale = 1; lastScale = 1; tx = 0; ty = 0; lastTx = 0; lastTy = 0;
+  };
+
+  // ── ダブルタップズーム ──
+  let lastTapTime = 0;
+  img.addEventListener('touchstart', e => {
+    const now = Date.now();
+    if (now - lastTapTime < 280 && e.touches.length === 1) {
+      e.preventDefault();
+      if (scale > 1.05) {
+        resetTransform(true);
+      } else {
+        const rect = img.getBoundingClientRect();
+        const cx = e.touches[0].clientX - rect.left - rect.width  / 2;
+        const cy = e.touches[0].clientY - rect.top  - rect.height / 2;
+        scale = 2.5; lastScale = 2.5;
+        tx = -cx * 1.5; ty = -cy * 1.5;
+        lastTx = tx; lastTy = ty;
+        applyTransform(true);
+      }
+    }
+    lastTapTime = now;
+  }, { passive: false });
+
+  // ── ピンチズーム ＋ パン ──
+  let pinchDist0 = 0, panX0 = 0, panY0 = 0;
+
+  imgWrap.addEventListener('touchstart', e => {
+    if (e.touches.length === 2) {
+      pinchDist0 = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+    } else if (e.touches.length === 1 && scale > 1.05) {
+      panX0 = e.touches[0].clientX - lastTx;
+      panY0 = e.touches[0].clientY - lastTy;
+    }
+  }, { passive: true });
+
+  imgWrap.addEventListener('touchmove', e => {
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      const d = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      scale = Math.min(6, Math.max(1, lastScale * (d / pinchDist0)));
+      applyTransform(false);
+    } else if (e.touches.length === 1 && scale > 1.05) {
+      e.preventDefault();
+      tx = e.touches[0].clientX - panX0;
+      ty = e.touches[0].clientY - panY0;
+      applyTransform(false);
+    }
+  }, { passive: false });
+
+  imgWrap.addEventListener('touchend', e => {
+    lastScale = scale; lastTx = tx; lastTy = ty;
+    if (scale < 1.1) resetTransform(false);
+  }, { passive: true });
+
+  // ── 下スワイプで閉じる（ズームなし時のみ） ──
+  let swY0 = 0, swDrag = false;
+
+  viewer.addEventListener('touchstart', e => {
+    if (scale > 1.05 || e.touches.length !== 1) return;
+    swY0 = e.touches[0].clientY;
+    swDrag = false;
+  }, { passive: true });
+
+  viewer.addEventListener('touchmove', e => {
+    if (scale > 1.05 || e.touches.length !== 1) return;
+    const dy = e.touches[0].clientY - swY0;
+    if (dy > 20) {
+      swDrag = true;
+      viewer.style.transform = `translateY(${dy}px)`;
+      viewer.style.opacity   = String(Math.max(0, 1 - dy / 350));
+    }
+  }, { passive: true });
+
+  viewer.addEventListener('touchend', e => {
+    if (!swDrag) return;
+    swDrag = false;
+    const dy = e.changedTouches[0].clientY - swY0;
+    if (dy > 120) {
+      viewer.style.transition = 'transform 0.25s ease, opacity 0.25s ease';
+      viewer.style.transform  = 'translateY(100%)';
+      viewer.style.opacity    = '0';
+      setTimeout(() => {
+        closeWorkViewer();
+        viewer.style.transition = '';
+        viewer.style.transform  = '';
+        viewer.style.opacity    = '';
+      }, 250);
+    } else {
+      viewer.style.transition = 'transform 0.2s ease, opacity 0.2s ease';
+      viewer.style.transform  = '';
+      viewer.style.opacity    = '';
+      setTimeout(() => { viewer.style.transition = ''; }, 200);
+    }
+  }, { passive: true });
+})();
+</script>
+</body>
+</html>
