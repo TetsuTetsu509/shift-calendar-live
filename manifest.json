@@ -1,7 +1,8 @@
 {
   "name": "シフトカレンダー",
   "short_name": "シフト",
-  "start_url": "/",
+  "start_url": ".",
+  "scope": ".",
   "display": "standalone",
   "background_color": "#FF6B6B",
   "theme_color": "#FF6B6B",
