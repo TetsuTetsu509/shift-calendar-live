@@ -1034,6 +1034,7 @@
           <option value="siren">サイレン</option>
           <option value="radar">レーダー風</option>
           <option value="classicAlarm">目覚まし時計</option>
+          <option value="blast">爆音アラーム</option>
         </select>
       </div>
       <button class="btn-secondary" onclick="previewAlarmSound()">選んだ音を聴く</button>
@@ -1050,7 +1051,8 @@
         <button class="btn-secondary" onclick="previewAndSelectAlarmSound('wakebell')">大音量ベルを聴く</button>
         <button class="btn-secondary" onclick="previewAndSelectAlarmSound('siren')">サイレンを聴く</button>
         <button class="btn-secondary" onclick="previewAndSelectAlarmSound('radar')">レーダー風を聴く</button>
-        <button class="btn-secondary" onclick="previewAndSelectAlarmSound('classicAlarm')" style="grid-column:1 / -1">目覚まし時計を聴く</button>
+        <button class="btn-secondary" onclick="previewAndSelectAlarmSound('classicAlarm')">目覚まし時計を聴く</button>
+        <button class="btn-secondary" onclick="previewAndSelectAlarmSound('blast')" style="grid-column:1 / -1">爆音アラームを聴く</button>
       </div>
     </div>
 
@@ -2266,9 +2268,9 @@ function fireAlarm(alarm) {
   if (ringingAlarmTimer) clearInterval(ringingAlarmTimer);
   if (ringingVibrateTimer) clearInterval(ringingVibrateTimer);
   playAlarmSound(false);
-  ringingAlarmTimer = setInterval(() => playAlarmSound(false), 1800);
+  ringingAlarmTimer = setInterval(() => playAlarmSound(false), 1150);
   vibrateRingingAlarm();
-  ringingVibrateTimer = setInterval(vibrateRingingAlarm, 1800);
+  ringingVibrateTimer = setInterval(vibrateRingingAlarm, 1150);
   showToast(`${alarm.label} ${body}`, 8000);
   saveScheduledAlarms(loadScheduledAlarms().filter(a => a.id !== alarm.id));
   armSavedAlarms();
@@ -2299,7 +2301,7 @@ async function playAlarmSound(isPreview = false) {
 
 function getAlarmSoundPattern(sound, isPreview = false) {
   const q = 0.24;
-  const wakeLoops = isPreview ? 2 : 4;
+  const wakeLoops = isPreview ? 2 : 6;
   const repeat = (base, gap, loops) => {
     const out = [];
     const length = Math.max(...base.map(n => n.t + n.d));
@@ -2328,6 +2330,12 @@ function getAlarmSoundPattern(sound, isPreview = false) {
     { f: 1175, t: 0.34, d: 0.1 }, { f: 0, t: 0.45, d: 0.05 },
     { f: 1175, t: 0.51, d: 0.1 },
   ], 0.16, wakeLoops);
+  const blast = repeat([
+    { f: 1865, t: 0, d: 0.09 }, { f: 1480, t: 0.09, d: 0.09 },
+    { f: 2217, t: 0.18, d: 0.09 }, { f: 1175, t: 0.27, d: 0.09 },
+    { f: 1865, t: 0.36, d: 0.09 }, { f: 1480, t: 0.45, d: 0.09 },
+    { f: 2217, t: 0.54, d: 0.09 }, { f: 1175, t: 0.63, d: 0.09 },
+  ], 0.08, isPreview ? 2 : 7);
   const patterns = {
     standard: [{ f: 880, t: 0, d: 1.2 }],
     bright:   [{ f: 1175, t: 0, d: 0.45 }, { f: 1397, t: 0.55, d: 0.45 }],
@@ -2342,6 +2350,7 @@ function getAlarmSoundPattern(sound, isPreview = false) {
     siren,
     radar,
     classicAlarm,
+    blast,
   };
   return patterns[sound] || patterns.standard;
 }
@@ -2353,16 +2362,29 @@ function playAlarmTone(ctx, frequency, offset, duration) {
     const gain = ctx.createGain();
     const filter = ctx.createBiquadFilter();
     const start = ctx.currentTime + offset;
-    osc.type = 'square';
+    osc.type = 'sawtooth';
     osc.frequency.value = frequency;
+    const osc2 = ctx.createOscillator();
+    osc2.type = 'square';
+    osc2.frequency.value = frequency * 1.01;
+    const osc3 = ctx.createOscillator();
+    osc3.type = 'square';
+    osc3.frequency.value = frequency * 0.5;
     filter.type = 'highpass';
-    filter.frequency.value = 320;
+    filter.frequency.value = 260;
     gain.gain.setValueAtTime(0.001, start);
-    gain.gain.exponentialRampToValueAtTime(0.65, start + 0.025);
+    gain.gain.exponentialRampToValueAtTime(0.95, start + 0.018);
     gain.gain.exponentialRampToValueAtTime(0.001, start + duration);
-    osc.connect(filter).connect(gain).connect(ctx.destination);
+    osc.connect(filter);
+    osc2.connect(filter);
+    osc3.connect(filter);
+    filter.connect(gain).connect(ctx.destination);
     osc.start(start);
+    osc2.start(start);
+    osc3.start(start);
     osc.stop(start + duration + 0.03);
+    osc2.stop(start + duration + 0.03);
+    osc3.stop(start + duration + 0.03);
   } catch(e) {}
 }
 
@@ -2379,7 +2401,7 @@ function previewAndSelectAlarmSound(sound) {
 }
 
 function vibrateRingingAlarm() {
-  if (navigator.vibrate) navigator.vibrate([900, 160, 900, 160, 900]);
+  if (navigator.vibrate) navigator.vibrate([1000, 100, 1000, 100, 1000]);
 }
 
 function stopRingingAlarm() {
