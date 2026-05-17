@@ -723,7 +723,13 @@
   .ringing-time {
     font-size: 44px;
     font-weight: 900;
-    margin-bottom: 18px;
+    margin-bottom: 8px;
+  }
+  .ringing-note {
+    font-size: 14px;
+    font-weight: 700;
+    color: #FDE68A;
+    margin-bottom: 20px;
   }
   .ringing-stop {
     border: none;
@@ -796,6 +802,7 @@
   <div>
     <div class="ringing-title" id="ringingAlarmTitle">アラーム</div>
     <div class="ringing-time" id="ringingAlarmTime"></div>
+    <div class="ringing-note">停止するまで鳴り続けます</div>
     <button class="ringing-stop" onclick="stopRingingAlarm()">停止</button>
   </div>
 </div>
@@ -1496,6 +1503,7 @@ let alarmSelectedMode = 'regular';
 let alarmTargetDate = null;
 let alarmTimers = {};
 let ringingAlarmTimer = null;
+let ringingVibrateTimer = null;
 let ringingAlarmAudio = null;
 
 // =====================================================================
@@ -2255,9 +2263,12 @@ function fireAlarm(alarm) {
   document.getElementById('ringingAlarmTitle').textContent = alarm.label || 'アラーム';
   document.getElementById('ringingAlarmTime').textContent = body;
   document.getElementById('ringingAlarm').classList.add('visible');
+  if (ringingAlarmTimer) clearInterval(ringingAlarmTimer);
+  if (ringingVibrateTimer) clearInterval(ringingVibrateTimer);
   playAlarmSound(false);
   ringingAlarmTimer = setInterval(() => playAlarmSound(false), 1800);
-  if (navigator.vibrate) navigator.vibrate([800, 200, 800, 200, 800]);
+  vibrateRingingAlarm();
+  ringingVibrateTimer = setInterval(vibrateRingingAlarm, 1800);
   showToast(`${alarm.label} ${body}`, 8000);
   saveScheduledAlarms(loadScheduledAlarms().filter(a => a.id !== alarm.id));
   armSavedAlarms();
@@ -2367,11 +2378,18 @@ function previewAndSelectAlarmSound(sound) {
   previewAlarmSound();
 }
 
+function vibrateRingingAlarm() {
+  if (navigator.vibrate) navigator.vibrate([900, 160, 900, 160, 900]);
+}
+
 function stopRingingAlarm() {
   if (ringingAlarmTimer) clearInterval(ringingAlarmTimer);
+  if (ringingVibrateTimer) clearInterval(ringingVibrateTimer);
   ringingAlarmTimer = null;
+  ringingVibrateTimer = null;
   if (navigator.vibrate) navigator.vibrate(0);
   document.getElementById('ringingAlarm').classList.remove('visible');
+  showToast('アラームを停止しました');
 }
 
 function renderScheduledAlarmList() {
