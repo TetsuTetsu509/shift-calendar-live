@@ -863,11 +863,19 @@
   <div class="modal-box">
     <div class="modal-handle"></div>
     <button class="modal-close" onclick="closeModal('alarmModal')">×</button>
-    <div class="modal-title">🔔 明日のアラーム</div>
+    <div class="modal-title">🔔 アラーム</div>
 
     <div class="alarm-summary">
       <div class="alarm-date" id="alarmTargetDateText"></div>
       <div class="alarm-shift" id="alarmTargetShiftText"></div>
+    </div>
+
+    <div class="settings-section">
+      <div class="settings-section-title">対象日</div>
+      <div class="alarm-mode-row">
+        <button class="alarm-choice" id="alarmDay-today" onclick="selectAlarmDay(0)">今日</button>
+        <button class="alarm-choice" id="alarmDay-tomorrow" onclick="selectAlarmDay(1)">明日</button>
+      </div>
     </div>
 
     <div class="settings-section">
@@ -889,6 +897,7 @@
     </div>
 
     <button class="btn-primary" onclick="scheduleSelectedAlarm()">この内容で一気にセット</button>
+    <button class="btn-secondary" onclick="cancelTargetDayAlarms()">この日のアラームを全解除</button>
     <button class="btn-secondary" onclick="autoScheduleFromLatestWorkPhoto()">最新の勤務表写真から自動セット</button>
     <button class="btn-secondary" id="alarmAutoToggleBtn" onclick="toggleAutoAlarmEnabled()">アラームON</button>
 
@@ -2102,15 +2111,24 @@ function formatAlarmDateTime(date) {
   return `${date.getMonth()+1}/${date.getDate()}(${dows[date.getDay()]}) ${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}`;
 }
 
-function openAlarmModal() {
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  alarmTargetDate = new Date(tomorrow.getFullYear(), tomorrow.getMonth(), tomorrow.getDate());
+function setAlarmTargetByOffset(dayOffset) {
+  const date = new Date();
+  date.setDate(date.getDate() + dayOffset);
+  alarmTargetDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
   const detectedShift = getShift(currentGroup, alarmTargetDate);
   alarmSelectedShift = detectedShift === 'off' ? 'ko' : detectedShift;
+}
+
+function openAlarmModal() {
+  setAlarmTargetByOffset(1);
   alarmSelectedMode = 'regular';
   renderAlarmModal();
   openModal('alarmModal');
+}
+
+function selectAlarmDay(dayOffset) {
+  setAlarmTargetByOffset(dayOffset);
+  renderAlarmModal();
 }
 
 function selectAlarmShift(shift) {
@@ -2128,8 +2146,15 @@ function renderAlarmModal() {
   const settings = getSettings();
   const target = alarmTargetDate || new Date();
   const dateText = formatAlarmDateTime(new Date(target.getFullYear(), target.getMonth(), target.getDate(), 0, 0)).replace(' 00:00','');
-  document.getElementById('alarmTargetDateText').textContent = `${settings['name' + currentGroup] || currentGroup + '組'} / 明日 ${dateText}`;
+  const today = new Date();
+  const todayStr = formatDateStr(today);
+  const targetStr = formatDateStr(target);
+  const targetLabel = targetStr === todayStr ? '今日' : '明日';
+  document.getElementById('alarmTargetDateText').textContent = `${settings['name' + currentGroup] || currentGroup + '組'} / ${targetLabel} ${dateText}`;
   document.getElementById('alarmTargetShiftText').textContent = `${SHIFT[alarmSelectedShift].badge} ${SHIFT[alarmSelectedShift].label}`;
+
+  document.getElementById('alarmDay-today').classList.toggle('active', targetStr === todayStr);
+  document.getElementById('alarmDay-tomorrow').classList.toggle('active', targetStr !== todayStr);
 
   ['ko','otsu','hei'].forEach(shift => {
     document.getElementById('alarmShift-' + shift).classList.toggle('active', alarmSelectedShift === shift);
@@ -2461,6 +2486,12 @@ function cancelAlarmsForDate(dateStr) {
   armSavedAlarms();
   renderScheduledAlarmList();
   showToast(removed ? `${dateStr} のアラームを解除しました` : 'その日のアラームはありません');
+}
+
+function cancelTargetDayAlarms() {
+  const target = alarmTargetDate || new Date();
+  cancelAlarmsForDate(formatDateStr(target));
+  renderAlarmModal();
 }
 
 function parseWorkScheduleMonth(label) {
