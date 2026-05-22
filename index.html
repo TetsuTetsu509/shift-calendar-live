@@ -828,9 +828,9 @@
 
 <!-- LEGEND -->
 <div class="legend-bar" id="legendBar">
-  <div class="legend-item"><span class="legend-dot dot-ko"></span><span id="leg-ko">甲（日勤）</span></div>
-  <div class="legend-item"><span class="legend-dot dot-otsu"></span><span id="leg-otsu">乙（準夜勤）</span></div>
-  <div class="legend-item"><span class="legend-dot dot-hei"></span><span id="leg-hei">丙（夜勤）</span></div>
+  <div class="legend-item"><span class="legend-dot dot-ko"></span><span id="leg-ko">甲</span></div>
+  <div class="legend-item"><span class="legend-dot dot-otsu"></span><span id="leg-otsu">乙</span></div>
+  <div class="legend-item"><span class="legend-dot dot-hei"></span><span id="leg-hei">丙</span></div>
   <div class="legend-item"><span class="legend-dot dot-off"></span><span id="leg-off">休み</span></div>
   <div class="legend-item"><span class="legend-dot dot-school"></span>下校</div>
 </div>
@@ -944,15 +944,15 @@
       </div>
       <div class="settings-row">
         <span class="settings-label">甲の表示名</span>
-        <input class="settings-input" id="labelKo" value="甲（日勤）" oninput="saveSettings()">
+        <input class="settings-input" id="labelKo" value="甲" oninput="saveSettings()">
       </div>
       <div class="settings-row">
         <span class="settings-label">乙の表示名</span>
-        <input class="settings-input" id="labelOtsu" value="乙（準夜勤）" oninput="saveSettings()">
+        <input class="settings-input" id="labelOtsu" value="乙" oninput="saveSettings()">
       </div>
       <div class="settings-row">
         <span class="settings-label">丙の表示名</span>
-        <input class="settings-input" id="labelHei" value="丙（夜勤）" oninput="saveSettings()">
+        <input class="settings-input" id="labelHei" value="丙" oninput="saveSettings()">
       </div>
       <div class="settings-row">
         <span class="settings-label">休みの表示名</span>
@@ -1484,9 +1484,9 @@ function getShift(group, date) {
 
 function getShiftInfo() {
   const s = getSettings();
-  const labelKo   = s.labelKo   || '甲（日勤）';
-  const labelOtsu = s.labelOtsu || '乙（準夜勤）';
-  const labelHei  = s.labelHei  || '丙（夜勤）';
+  const labelKo   = s.labelKo   || '甲';
+  const labelOtsu = s.labelOtsu || '乙';
+  const labelHei  = s.labelHei  || '丙';
   const labelOff  = s.labelOff  || '休み';
   // Badge = first character of label
   return {
@@ -1534,7 +1534,7 @@ function getSettings() {
   const data = loadData();
   return Object.assign({
     nameA:'A組', nameB:'B組', nameC:'C組', nameD:'D組',
-    labelKo:'甲（日勤）', labelOtsu:'乙（準夜勤）', labelHei:'丙（夜勤）', labelOff:'休み',
+    labelKo:'甲', labelOtsu:'乙', labelHei:'丙', labelOff:'休み',
     timeKo:'8:00-16:30', timeOtsu:'16:00-0:30', timeHei:'0:00-8:30',
     alarmKoRegular:'04:00,04:15,04:30,04:45,05:00,05:15,05:30,06:00',
     alarmKoEarly:'00:30,00:45,01:00,01:15,01:30',
@@ -2628,9 +2628,9 @@ function openSettingsModal() {
   document.getElementById('nameB').value    = s.nameB;
   document.getElementById('nameC').value    = s.nameC;
   document.getElementById('nameD').value    = s.nameD;
-  document.getElementById('labelKo').value  = s.labelKo   || '甲（日勤）';
-  document.getElementById('labelOtsu').value= s.labelOtsu || '乙（準夜勤）';
-  document.getElementById('labelHei').value = s.labelHei  || '丙（夜勤）';
+  document.getElementById('labelKo').value  = s.labelKo   || '甲';
+  document.getElementById('labelOtsu').value= s.labelOtsu || '乙';
+  document.getElementById('labelHei').value = s.labelHei  || '丙';
   document.getElementById('labelOff').value = s.labelOff  || '休み';
   document.getElementById('timeKo').value   = s.timeKo;
   document.getElementById('timeOtsu').value = s.timeOtsu;
@@ -2665,9 +2665,9 @@ function saveSettings() {
     nameB:    document.getElementById('nameB').value,
     nameC:    document.getElementById('nameC').value,
     nameD:    document.getElementById('nameD').value,
-    labelKo:  document.getElementById('labelKo').value   || '甲（日勤）',
-    labelOtsu:document.getElementById('labelOtsu').value || '乙（準夜勤）',
-    labelHei: document.getElementById('labelHei').value  || '丙（夜勤）',
+    labelKo:  document.getElementById('labelKo').value   || '甲',
+    labelOtsu:document.getElementById('labelOtsu').value || '乙',
+    labelHei: document.getElementById('labelHei').value  || '丙',
     labelOff: document.getElementById('labelOff').value  || '休み',
     timeKo:   document.getElementById('timeKo').value,
     timeOtsu: document.getElementById('timeOtsu').value,
