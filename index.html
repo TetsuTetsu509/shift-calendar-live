@@ -2115,7 +2115,7 @@ function setAlarmTargetByOffset(dayOffset) {
   const date = new Date();
   date.setDate(date.getDate() + dayOffset);
   alarmTargetDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  const detectedShift = getShift(currentGroup, alarmTargetDate);
+  const detectedShift = getShift(getAlarmGroup(), alarmTargetDate);
   alarmSelectedShift = detectedShift === 'off' ? 'ko' : detectedShift;
 }
 
@@ -2150,8 +2150,11 @@ function renderAlarmModal() {
   const todayStr = formatDateStr(today);
   const targetStr = formatDateStr(target);
   const targetLabel = targetStr === todayStr ? '今日' : '明日';
+  const targetCalendarShift = getShift(getAlarmGroup(), target);
   document.getElementById('alarmTargetDateText').textContent = `${settings['name' + currentGroup] || currentGroup + '組'} / ${targetLabel} ${dateText}`;
-  document.getElementById('alarmTargetShiftText').textContent = `${SHIFT[alarmSelectedShift].badge} ${SHIFT[alarmSelectedShift].label}`;
+  document.getElementById('alarmTargetShiftText').textContent = targetCalendarShift === 'off'
+    ? `${SHIFT.off.badge} ${SHIFT.off.label}`
+    : `${SHIFT[alarmSelectedShift].badge} ${SHIFT[alarmSelectedShift].label}`;
 
   document.getElementById('alarmDay-today').classList.toggle('active', targetStr === todayStr);
   document.getElementById('alarmDay-tomorrow').classList.toggle('active', targetStr !== todayStr);
@@ -2166,7 +2169,10 @@ function renderAlarmModal() {
   const preview = document.getElementById('alarmTimesPreview');
   preview.innerHTML = '';
   const times = getAlarmTimesFor(alarmSelectedShift, alarmSelectedMode);
-  if (times.length === 0) {
+  if (targetCalendarShift === 'off') {
+    cancelAlarmsForDate(targetStr, true);
+    preview.innerHTML = '<span style="font-size:13px;color:#6B7280;font-weight:800">休みの日なのでアラームは入りません</span>';
+  } else if (times.length === 0) {
     preview.innerHTML = '<span style="font-size:13px;color:#EF4444;font-weight:700">設定画面で時刻を入力してください</span>';
   } else {
     times.forEach(time => {
@@ -2480,12 +2486,12 @@ function cancelAllScheduledAlarms() {
   showToast('すべて解除しました');
 }
 
-function cancelAlarmsForDate(dateStr) {
+function cancelAlarmsForDate(dateStr, silent = false) {
   const removed = loadScheduledAlarms().filter(alarm => alarm.targetDate === dateStr).length;
   saveScheduledAlarms(loadScheduledAlarms().filter(alarm => alarm.targetDate !== dateStr));
   armSavedAlarms();
   renderScheduledAlarmList();
-  showToast(removed ? `${dateStr} のアラームを解除しました` : 'その日のアラームはありません');
+  if (!silent) showToast(removed ? `${dateStr} のアラームを解除しました` : 'その日のアラームはありません');
 }
 
 function cancelTargetDayAlarms() {
