@@ -2153,8 +2153,8 @@ function renderAlarmModal() {
   const targetCalendarShift = getShift(getAlarmGroup(), target);
   document.getElementById('alarmTargetDateText').textContent = `${settings['name' + currentGroup] || currentGroup + '組'} / ${targetLabel} ${dateText}`;
   document.getElementById('alarmTargetShiftText').textContent = targetCalendarShift === 'off'
-    ? `${SHIFT.off.badge} ${SHIFT.off.label}`
-    : `${SHIFT[alarmSelectedShift].badge} ${SHIFT[alarmSelectedShift].label}`;
+    ? SHIFT.off.label
+    : SHIFT[alarmSelectedShift].label;
 
   document.getElementById('alarmDay-today').classList.toggle('active', targetStr === todayStr);
   document.getElementById('alarmDay-tomorrow').classList.toggle('active', targetStr !== todayStr);
