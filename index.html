@@ -1309,9 +1309,10 @@
       style="background:rgba(255,255,255,0.2);border:none;color:white;
              border-radius:50%;width:32px;height:32px;font-size:18px;cursor:pointer">×</button>
   </div>
-  <div style="flex:1;overflow:auto;display:flex;align-items:center;justify-content:center;padding:8px">
+  <div id="workViewerImageWrap" onclick="event.stopPropagation()"
+    style="flex:1;overflow:hidden;display:flex;align-items:center;justify-content:center;padding:8px;touch-action:none">
     <img id="workViewerImg" src="" alt="勤務表"
-      style="max-width:100%;max-height:100%;object-fit:contain;border-radius:4px">
+      style="max-width:100%;max-height:100%;object-fit:contain;border-radius:4px;transform-origin:center center;user-select:none;-webkit-user-select:none">
   </div>
 </div>
 
@@ -3574,7 +3575,23 @@ setTimeout(() => {
   let scale = 1, lastScale = 1;
   let tx = 0, ty = 0, lastTx = 0, lastTy = 0;
 
+  function clampPan() {
+    const wrapW = imgWrap.clientWidth;
+    const wrapH = imgWrap.clientHeight;
+    const imgW = img.offsetWidth;
+    const imgH = img.offsetHeight;
+    const maxTx = Math.max(0, (imgW * scale - wrapW) / 2);
+    const maxTy = Math.max(0, (imgH * scale - wrapH) / 2);
+    tx = Math.max(-maxTx, Math.min(maxTx, tx));
+    ty = Math.max(-maxTy, Math.min(maxTy, ty));
+    if (scale <= 1.05) {
+      tx = 0;
+      ty = 0;
+    }
+  }
+
   function applyTransform(animated) {
+    clampPan();
     if (animated) { img.style.transition = 'transform 0.25s ease'; }
     img.style.transform = `translate(${tx}px,${ty}px) scale(${scale})`;
     if (animated) { setTimeout(() => { img.style.transition = ''; }, 260); }
@@ -3606,10 +3623,10 @@ setTimeout(() => {
         const rect = img.getBoundingClientRect();
         const cx = e.touches[0].clientX - rect.left - rect.width  / 2;
         const cy = e.touches[0].clientY - rect.top  - rect.height / 2;
-        scale = 2.5; lastScale = 2.5;
-        tx = -cx * 1.5; ty = -cy * 1.5;
-        lastTx = tx; lastTy = ty;
+        scale = 3.2; lastScale = 3.2;
+        tx = -cx * 2.2; ty = -cy * 2.2;
         applyTransform(true);
+        lastTx = tx; lastTy = ty;
       }
     }
     lastTapTime = now;
@@ -3648,9 +3665,18 @@ setTimeout(() => {
   }, { passive: false });
 
   imgWrap.addEventListener('touchend', e => {
+    clampPan();
     lastScale = scale; lastTx = tx; lastTy = ty;
     if (scale < 1.1) resetTransform(false);
   }, { passive: true });
+
+  img.addEventListener('load', () => resetTransform(false));
+  window.addEventListener('resize', () => {
+    clampPan();
+    lastTx = tx;
+    lastTy = ty;
+    applyTransform(false);
+  });
 
   // ── 下スワイプで閉じる（ズームなし時のみ） ──
   let swY0 = 0, swDrag = false;
