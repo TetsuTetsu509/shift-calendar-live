@@ -1518,11 +1518,15 @@ let alarmTimers = {};
 let ringingAlarmTimer = null;
 let ringingVibrateTimer = null;
 let ringingAlarmAudio = null;
+let ringingAlarmMasterGain = null;
 let ringingAlarmElement = null;
 let ringingAlarmObjectUrl = null;
 let alarmWatchdogTimer = null;
 let alarmPlaybackUnlocked = false;
 let firingAlarmIds = new Set();
+let activeAlarmNodes = new Set();
+let alarmWakeLock = null;
+let alarmIsRinging = false;
 
 // =====================================================================
 // DATA ACCESS (Firebase同期)
@@ -2249,8 +2253,18 @@ async function unlockAlarmPlayback() {
     }
   } catch(e) {}
   await unlockHtmlAlarmAudio();
+  requestAlarmWakeLock();
   pulseAlarmVibration();
   startAlarmWatchdog();
+}
+
+async function requestAlarmWakeLock() {
+  if (!('wakeLock' in navigator) || document.hidden) return;
+  try {
+    if (alarmWakeLock) return;
+    alarmWakeLock = await navigator.wakeLock.request('screen');
+    alarmWakeLock.addEventListener('release', () => { alarmWakeLock = null; });
+  } catch(e) {}
 }
 
 async function scheduleSelectedAlarm() {
@@ -2325,6 +2339,7 @@ function armSavedAlarms() {
     alarmTimers[alarm.id] = setTimeout(() => fireAlarm(alarm), delay);
   });
 
+  if (activeAlarms.length) requestAlarmWakeLock();
   startAlarmWatchdog();
   if (document.getElementById('scheduledAlarmList')) renderScheduledAlarmList();
 }
@@ -2337,7 +2352,10 @@ function startAlarmWatchdog() {
 }
 
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden) armSavedAlarms();
+  if (!document.hidden) {
+    requestAlarmWakeLock();
+    armSavedAlarms();
+  }
 });
 window.addEventListener('focus', armSavedAlarms);
 window.addEventListener('pageshow', armSavedAlarms);
@@ -2365,6 +2383,9 @@ function fireAlarm(alarm, wasMissed = false) {
   document.getElementById('ringingAlarm').classList.add('visible');
   if (ringingAlarmTimer) clearInterval(ringingAlarmTimer);
   if (ringingVibrateTimer) clearInterval(ringingVibrateTimer);
+  stopActiveAlarmTones();
+  resetAlarmMasterGain();
+  alarmIsRinging = true;
   startHtmlAlarmLoop();
   playAlarmSound(false);
   ringingAlarmTimer = setInterval(() => {
@@ -2387,13 +2408,50 @@ async function getAlarmAudioContext() {
   return ctx;
 }
 
+function getAlarmMasterGain(ctx) {
+  if (!ringingAlarmMasterGain) {
+    ringingAlarmMasterGain = ctx.createGain();
+    ringingAlarmMasterGain.gain.value = 1;
+    ringingAlarmMasterGain.connect(ctx.destination);
+  }
+  return ringingAlarmMasterGain;
+}
+
+function resetAlarmMasterGain() {
+  if (!ringingAlarmAudio || !ringingAlarmMasterGain) return;
+  try {
+    ringingAlarmMasterGain.gain.cancelScheduledValues(ringingAlarmAudio.currentTime);
+    ringingAlarmMasterGain.gain.setValueAtTime(1, ringingAlarmAudio.currentTime);
+  } catch(e) {}
+}
+
+function muteAlarmMasterGain() {
+  if (!ringingAlarmAudio || !ringingAlarmMasterGain) return;
+  try {
+    ringingAlarmMasterGain.gain.cancelScheduledValues(ringingAlarmAudio.currentTime);
+    ringingAlarmMasterGain.gain.setValueAtTime(0.0001, ringingAlarmAudio.currentTime);
+  } catch(e) {}
+}
+
+function stopActiveAlarmTones() {
+  activeAlarmNodes.forEach(node => {
+    try { node.stop(0); } catch(e) {}
+    try { node.disconnect(); } catch(e) {}
+  });
+  activeAlarmNodes.clear();
+  muteAlarmMasterGain();
+}
+
 async function playAlarmSound(isPreview = false) {
   try {
+    if (!isPreview && !alarmIsRinging) return;
     const ctx = await getAlarmAudioContext();
     if (!ctx) {
       showToast('この端末では音声再生に対応していません');
       return;
     }
+    if (!isPreview && !alarmIsRinging) return;
+    resetAlarmMasterGain();
     const notes = getAlarmSoundPattern(getSettings().alarmSound || 'standard', isPreview);
     for (const note of notes) playAlarmTone(ctx, note.f, note.t, note.d);
   } catch(e) {
@@ -2468,8 +2526,9 @@ async function unlockHtmlAlarmAudio() {
   } catch(e) {}
 }
 
-async function startHtmlAlarmLoop() {
+async function startHtmlAlarmLoop(isPreview = false) {
   try {
+    if (!isPreview && !alarmIsRinging) return;
     const audio = getRingingAlarmElement();
     if (!audio.src) audio.src = getAlarmWavUrl();
     audio.muted = false;
@@ -2477,6 +2536,7 @@ async function startHtmlAlarmLoop() {
     if (audio.paused) {
       audio.currentTime = 0;
       await audio.play();
+      if (!isPreview && !alarmIsRinging) stopHtmlAlarmLoop();
     }
   } catch(e) {
     showToast('音声再生がブロックされています。画面をタップしてテストしてください', 5000);
@@ -2568,7 +2628,11 @@ function playAlarmTone(ctx, frequency, offset, duration) {
     osc.connect(filter);
     osc2.connect(filter);
     osc3.connect(filter);
-    filter.connect(gain).connect(ctx.destination);
+    filter.connect(gain).connect(getAlarmMasterGain(ctx));
+    [osc, osc2, osc3].forEach(node => {
+      activeAlarmNodes.add(node);
+      node.onended = () => activeAlarmNodes.delete(node);
+    });
     osc.start(start);
     osc2.start(start);
     osc3.start(start);
@@ -2580,7 +2644,7 @@ function playAlarmTone(ctx, frequency, offset, duration) {
 
 async function previewAlarmSound() {
   await unlockAlarmPlayback();
-  await startHtmlAlarmLoop();
+  await startHtmlAlarmLoop(true);
   setTimeout(stopHtmlAlarmLoop, 2200);
   await playAlarmSound(true);
   pulseAlarmVibration();
@@ -2620,8 +2684,10 @@ function stopRingingAlarm() {
   if (ringingVibrateTimer) clearInterval(ringingVibrateTimer);
   ringingAlarmTimer = null;
   ringingVibrateTimer = null;
+  alarmIsRinging = false;
   firingAlarmIds.clear();
   stopHtmlAlarmLoop();
+  stopActiveAlarmTones();
   if (navigator.vibrate) navigator.vibrate(0);
   document.getElementById('ringingAlarm').classList.remove('visible');
   showToast('アラームを停止しました');
