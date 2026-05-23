@@ -1518,6 +1518,8 @@ let alarmTimers = {};
 let ringingAlarmTimer = null;
 let ringingVibrateTimer = null;
 let ringingAlarmAudio = null;
+let ringingAlarmElement = null;
+let ringingAlarmObjectUrl = null;
 let alarmWatchdogTimer = null;
 let alarmPlaybackUnlocked = false;
 let firingAlarmIds = new Set();
@@ -2246,6 +2248,7 @@ async function unlockAlarmPlayback() {
       alarmPlaybackUnlocked = true;
     }
   } catch(e) {}
+  await unlockHtmlAlarmAudio();
   pulseAlarmVibration();
   startAlarmWatchdog();
 }
@@ -2362,8 +2365,12 @@ function fireAlarm(alarm, wasMissed = false) {
   document.getElementById('ringingAlarm').classList.add('visible');
   if (ringingAlarmTimer) clearInterval(ringingAlarmTimer);
   if (ringingVibrateTimer) clearInterval(ringingVibrateTimer);
+  startHtmlAlarmLoop();
   playAlarmSound(false);
-  ringingAlarmTimer = setInterval(() => playAlarmSound(false), 1150);
+  ringingAlarmTimer = setInterval(() => {
+    startHtmlAlarmLoop();
+    playAlarmSound(false);
+  }, 1150);
   vibrateRingingAlarm();
   ringingVibrateTimer = setInterval(vibrateRingingAlarm, 900);
   showToast(`${alarm.label} ${body}`, 8000);
@@ -2392,6 +2399,94 @@ async function playAlarmSound(isPreview = false) {
   } catch(e) {
     showToast('音を鳴らせませんでした');
   }
+}
+
+function getRingingAlarmElement() {
+  if (ringingAlarmElement) return ringingAlarmElement;
+  const audio = document.createElement('audio');
+  audio.id = 'ringingAlarmAudio';
+  audio.loop = true;
+  audio.preload = 'auto';
+  audio.playsInline = true;
+  audio.setAttribute('playsinline', '');
+  audio.volume = 1;
+  document.body.appendChild(audio);
+  ringingAlarmElement = audio;
+  return audio;
+}
+
+function getAlarmWavUrl() {
+  if (ringingAlarmObjectUrl) return ringingAlarmObjectUrl;
+  const sampleRate = 22050;
+  const durationSec = 1.1;
+  const sampleCount = Math.floor(sampleRate * durationSec);
+  const dataBytes = sampleCount * 2;
+  const buffer = new ArrayBuffer(44 + dataBytes);
+  const view = new DataView(buffer);
+  const writeString = (offset, value) => {
+    for (let i = 0; i < value.length; i++) view.setUint8(offset + i, value.charCodeAt(i));
+  };
+  writeString(0, 'RIFF');
+  view.setUint32(4, 36 + dataBytes, true);
+  writeString(8, 'WAVE');
+  writeString(12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  writeString(36, 'data');
+  view.setUint32(40, dataBytes, true);
+
+  for (let i = 0; i < sampleCount; i++) {
+    const t = i / sampleRate;
+    const gate = (t % 0.18) < 0.12 ? 1 : 0.18;
+    const sweep = (Math.floor(t * 10) % 2 === 0) ? 1760 : 1175;
+    const square = Math.sin(2 * Math.PI * sweep * t) >= 0 ? 1 : -1;
+    const buzz = Math.sin(2 * Math.PI * 2320 * t) >= 0 ? 0.45 : -0.45;
+    const low = Math.sin(2 * Math.PI * 440 * t) * 0.35;
+    const sample = Math.max(-1, Math.min(1, (square + buzz + low) * gate * 0.62));
+    view.setInt16(44 + i * 2, sample * 32767, true);
+  }
+
+  ringingAlarmObjectUrl = URL.createObjectURL(new Blob([buffer], { type: 'audio/wav' }));
+  return ringingAlarmObjectUrl;
+}
+
+async function unlockHtmlAlarmAudio() {
+  try {
+    const audio = getRingingAlarmElement();
+    if (!audio.src) audio.src = getAlarmWavUrl();
+    audio.muted = true;
+    await audio.play();
+    audio.pause();
+    audio.currentTime = 0;
+    audio.muted = false;
+    alarmPlaybackUnlocked = true;
+  } catch(e) {}
+}
+
+async function startHtmlAlarmLoop() {
+  try {
+    const audio = getRingingAlarmElement();
+    if (!audio.src) audio.src = getAlarmWavUrl();
+    audio.muted = false;
+    audio.volume = 1;
+    if (audio.paused) {
+      audio.currentTime = 0;
+      await audio.play();
+    }
+  } catch(e) {
+    showToast('音声再生がブロックされています。画面をタップしてテストしてください', 5000);
+  }
+}
+
+function stopHtmlAlarmLoop() {
+  if (!ringingAlarmElement) return;
+  ringingAlarmElement.pause();
+  ringingAlarmElement.currentTime = 0;
 }
 
 function getAlarmSoundPattern(sound, isPreview = false) {
@@ -2485,6 +2580,8 @@ function playAlarmTone(ctx, frequency, offset, duration) {
 
 async function previewAlarmSound() {
   await unlockAlarmPlayback();
+  await startHtmlAlarmLoop();
+  setTimeout(stopHtmlAlarmLoop, 2200);
   await playAlarmSound(true);
   pulseAlarmVibration();
   showToast('音を再生しました');
@@ -2524,6 +2621,7 @@ function stopRingingAlarm() {
   ringingAlarmTimer = null;
   ringingVibrateTimer = null;
   firingAlarmIds.clear();
+  stopHtmlAlarmLoop();
   if (navigator.vibrate) navigator.vibrate(0);
   document.getElementById('ringingAlarm').classList.remove('visible');
   showToast('アラームを停止しました');
