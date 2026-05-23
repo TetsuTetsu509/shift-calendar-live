@@ -898,8 +898,6 @@
 
     <button class="btn-primary" onclick="scheduleSelectedAlarm()">この内容で一気にセット</button>
     <button class="btn-secondary" onclick="testAlarmNow()">今すぐ音とバイブをテスト</button>
-    <button class="btn-secondary" onclick="sendAlarmsToIPhoneClock()">この日の標準アラームへ送る</button>
-    <button class="btn-secondary" onclick="showIPhoneClockShortcutGuide()">初回設定の手順を見る</button>
     <button class="btn-secondary" onclick="cancelTargetDayAlarms()">この日のアラームを全解除</button>
     <button class="btn-secondary" onclick="autoScheduleFromLatestWorkPhoto()">最新の勤務表写真から自動セット</button>
     <button class="btn-secondary" id="alarmAutoToggleBtn" onclick="toggleAutoAlarmEnabled()">アラームON</button>
@@ -2693,51 +2691,6 @@ function stopRingingAlarm() {
   if (navigator.vibrate) navigator.vibrate(0);
   document.getElementById('ringingAlarm').classList.remove('visible');
   showToast('アラームを停止しました');
-}
-
-function buildIPhoneClockShortcutText() {
-  const target = alarmTargetDate || new Date();
-  const targetDateStr = formatDateStr(target);
-  const alarms = loadScheduledAlarms()
-    .filter(alarm => alarm.targetDate === targetDateStr && new Date(alarm.at).getTime() > Date.now())
-    .sort((a, b) => new Date(a.at) - new Date(b.at));
-  const times = alarms.map(alarm => {
-    const at = new Date(alarm.at);
-    return `${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}`;
-  });
-  return [...new Set(times)].join('\n');
-}
-
-function sendAlarmsToIPhoneClock() {
-  const text = buildIPhoneClockShortcutText();
-  if (!text) {
-    showToast('この日に送れるアラームがありません');
-    return;
-  }
-  const shortcutName = 'シフトアラーム登録';
-  const url = `shortcuts://run-shortcut?name=${encodeURIComponent(shortcutName)}&input=text&text=${encodeURIComponent(text)}`;
-  showToast('ショートカットを開きます');
-  window.location.href = url;
-}
-
-function showIPhoneClockShortcutGuide() {
-  alert([
-    '初回だけiPhoneの「ショートカット」アプリで作成してください。',
-    '',
-    '名前: シフトアラーム登録',
-    '',
-    '入れる動作:',
-    '1. 「テキストを分割」',
-    '   入力: ショートカット入力',
-    '   区切り: 新しい行',
-    '2. 「各項目を繰り返す」',
-    '   対象: 分割したテキスト',
-    '3. 繰り返しの中に「アラームを作成」',
-    '   時刻: 繰り返し項目',
-    '   ラベル: シフト',
-    '',
-    '作成後、このアプリで「この日の標準アラームへ送る」を押すと標準時計に登録されます。'
-  ].join('\n'));
 }
 
 function renderScheduledAlarmList() {
