@@ -802,7 +802,7 @@
   <div>
     <div class="ringing-title" id="ringingAlarmTitle">アラーム</div>
     <div class="ringing-time" id="ringingAlarmTime"></div>
-    <div class="ringing-note">停止するまで鳴り続けます</div>
+    <div class="ringing-note" id="ringingAlarmNote">停止するまで音とバイブを繰り返します</div>
     <button class="ringing-stop" onclick="stopRingingAlarm()">停止</button>
   </div>
 </div>
@@ -897,6 +897,7 @@
     </div>
 
     <button class="btn-primary" onclick="scheduleSelectedAlarm()">この内容で一気にセット</button>
+    <button class="btn-secondary" onclick="testAlarmNow()">今すぐ音とバイブをテスト</button>
     <button class="btn-secondary" onclick="cancelTargetDayAlarms()">この日のアラームを全解除</button>
     <button class="btn-secondary" onclick="autoScheduleFromLatestWorkPhoto()">最新の勤務表写真から自動セット</button>
     <button class="btn-secondary" id="alarmAutoToggleBtn" onclick="toggleAutoAlarmEnabled()">アラームON</button>
@@ -1517,6 +1518,9 @@ let alarmTimers = {};
 let ringingAlarmTimer = null;
 let ringingVibrateTimer = null;
 let ringingAlarmAudio = null;
+let alarmWatchdogTimer = null;
+let alarmPlaybackUnlocked = false;
+let firingAlarmIds = new Set();
 
 // =====================================================================
 // DATA ACCESS (Firebase同期)
@@ -2226,8 +2230,29 @@ async function ensureAlarmPermission() {
   return result === 'granted';
 }
 
+async function unlockAlarmPlayback() {
+  try {
+    const ctx = await getAlarmAudioContext();
+    if (ctx) {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const start = ctx.currentTime;
+      osc.frequency.value = 440;
+      gain.gain.setValueAtTime(0.001, start);
+      gain.gain.setValueAtTime(0.001, start + 0.04);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(start);
+      osc.stop(start + 0.05);
+      alarmPlaybackUnlocked = true;
+    }
+  } catch(e) {}
+  pulseAlarmVibration();
+  startAlarmWatchdog();
+}
+
 async function scheduleSelectedAlarm() {
   await ensureAlarmPermission();
+  await unlockAlarmPlayback();
   const target = alarmTargetDate || new Date();
   const SHIFT = getShiftInfo();
   if (getShift(getAlarmGroup(), target) === 'off') {
@@ -2273,36 +2298,74 @@ function armSavedAlarms() {
   alarmTimers = {};
   const now = Date.now();
   const alarmGroup = getAlarmGroup();
-  const alarms = loadScheduledAlarms().filter(alarm =>
-    new Date(alarm.at).getTime() > now &&
-    getShift(alarmGroup, new Date(alarm.targetDate + 'T00:00:00')) !== 'off'
-  );
-  saveScheduledAlarms(alarms);
+  const activeAlarms = [];
+  const dueAlarms = [];
+  const missedGraceMs = 3 * 60 * 60 * 1000;
 
-  alarms.forEach(alarm => {
+  loadScheduledAlarms().forEach(alarm => {
+    const atMs = new Date(alarm.at).getTime();
+    const isWorkDay = getShift(alarmGroup, new Date(alarm.targetDate + 'T00:00:00')) !== 'off';
+    if (!isWorkDay) return;
+    if (atMs > now) activeAlarms.push(alarm);
+    else if (now - atMs <= missedGraceMs) dueAlarms.push(alarm);
+  });
+
+  saveScheduledAlarms([...dueAlarms, ...activeAlarms].sort((a, b) => new Date(a.at) - new Date(b.at)));
+
+  dueAlarms.forEach(alarm => {
+    if (!firingAlarmIds.has(alarm.id)) fireAlarm(alarm, true);
+  });
+
+  activeAlarms.forEach(alarm => {
     const delay = new Date(alarm.at).getTime() - now;
     if (delay > 2147483647) return;
     alarmTimers[alarm.id] = setTimeout(() => fireAlarm(alarm), delay);
   });
 
+  startAlarmWatchdog();
   if (document.getElementById('scheduledAlarmList')) renderScheduledAlarmList();
 }
 
-function fireAlarm(alarm) {
+function startAlarmWatchdog() {
+  if (alarmWatchdogTimer) return;
+  alarmWatchdogTimer = setInterval(() => {
+    if (document.visibilityState !== 'hidden') armSavedAlarms();
+  }, 15000);
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) armSavedAlarms();
+});
+window.addEventListener('focus', armSavedAlarms);
+window.addEventListener('pageshow', armSavedAlarms);
+
+function fireAlarm(alarm, wasMissed = false) {
+  if (firingAlarmIds.has(alarm.id)) return;
+  firingAlarmIds.add(alarm.id);
   const title = `アラーム ${alarm.label}`;
   const body = formatAlarmDateTime(new Date(alarm.at));
   if ('Notification' in window && Notification.permission === 'granted') {
-    new Notification(title, { body, tag: alarm.id, requireInteraction: true });
+    new Notification(title, {
+      body,
+      tag: alarm.id,
+      requireInteraction: true,
+      renotify: true,
+      silent: false,
+      vibrate: [700, 80, 700, 80, 1200]
+    });
   }
   document.getElementById('ringingAlarmTitle').textContent = alarm.label || 'アラーム';
   document.getElementById('ringingAlarmTime').textContent = body;
+  document.getElementById('ringingAlarmNote').textContent = wasMissed
+    ? 'アプリ復帰時に検出しました。停止するまで音とバイブを繰り返します'
+    : '停止するまで音とバイブを繰り返します';
   document.getElementById('ringingAlarm').classList.add('visible');
   if (ringingAlarmTimer) clearInterval(ringingAlarmTimer);
   if (ringingVibrateTimer) clearInterval(ringingVibrateTimer);
   playAlarmSound(false);
   ringingAlarmTimer = setInterval(() => playAlarmSound(false), 1150);
   vibrateRingingAlarm();
-  ringingVibrateTimer = setInterval(vibrateRingingAlarm, 1150);
+  ringingVibrateTimer = setInterval(vibrateRingingAlarm, 900);
   showToast(`${alarm.label} ${body}`, 8000);
   saveScheduledAlarms(loadScheduledAlarms().filter(a => a.id !== alarm.id));
   armSavedAlarms();
@@ -2421,8 +2484,9 @@ function playAlarmTone(ctx, frequency, offset, duration) {
 }
 
 async function previewAlarmSound() {
+  await unlockAlarmPlayback();
   await playAlarmSound(true);
-  if (navigator.vibrate) navigator.vibrate([180, 80, 180]);
+  pulseAlarmVibration();
   showToast('音を再生しました');
 }
 
@@ -2432,8 +2496,26 @@ function previewAndSelectAlarmSound(sound) {
   previewAlarmSound();
 }
 
+async function testAlarmNow() {
+  await ensureAlarmPermission();
+  await unlockAlarmPlayback();
+  const now = new Date();
+  fireAlarm({
+    id: `test-${Date.now()}`,
+    at: now.toISOString(),
+    targetDate: formatDateStr(now),
+    shift: alarmSelectedShift,
+    mode: alarmSelectedMode,
+    label: 'テストアラーム'
+  });
+}
+
+function pulseAlarmVibration() {
+  if (navigator.vibrate) navigator.vibrate([250, 80, 250, 80, 500]);
+}
+
 function vibrateRingingAlarm() {
-  if (navigator.vibrate) navigator.vibrate([1000, 100, 1000, 100, 1000]);
+  if (navigator.vibrate) navigator.vibrate([700, 80, 700, 80, 1200]);
 }
 
 function stopRingingAlarm() {
@@ -2441,6 +2523,7 @@ function stopRingingAlarm() {
   if (ringingVibrateTimer) clearInterval(ringingVibrateTimer);
   ringingAlarmTimer = null;
   ringingVibrateTimer = null;
+  firingAlarmIds.clear();
   if (navigator.vibrate) navigator.vibrate(0);
   document.getElementById('ringingAlarm').classList.remove('visible');
   showToast('アラームを停止しました');
